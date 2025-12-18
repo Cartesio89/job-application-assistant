@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Application Assistant - Martino Cicerani</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .input-section {
+            margin-bottom: 30px;
+        }
+        
+        .input-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .score-display {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+        
+        .score-number {
+            font-size: 4em;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        
+        .score-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .score-interpretation {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+        
+        .keyword-section {
+            margin-bottom: 25px;
+        }
+        
+        .keyword-section h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+        }
+        
+        .keyword-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .keyword-tag {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .keyword-tag.matched {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .keyword-tag.missing {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .document-output {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .document-output h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .document-output pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #218838;
+        }
+        
+        .suggestions-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .suggestions-list li {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 30px;
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .download-section {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .download-btn {
+            flex: 1;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .download-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Job Application Assistant</h1>
+            <p>Genera cover letter e CV ottimizzati per ATS automaticamente</p>
+        </div>
+        
+        <div class="card">
+            <div class="input-section">
+                <h2>📋 Informazioni Posizione</h2>
+                
+                <div class="row">
+                    <div class="form-group">
+                        <label for="company">Nome Azienda *</label>
+                        <input type="text" id="company" placeholder="es. Brightstar" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="role">Ruolo *</label>
+                        <input type="text" id="role" placeholder="es. Digital Product Marketing Specialist" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="location">Location</label>
+                        <input type="text" id="location" placeholder="es. Roma" value="Roma">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="jd">Job Description *</label>
+                    <textarea id="jd" placeholder="Incolla qui l'intera job description..." required></textarea>
+                </div>
+                
+                <button class="btn" onclick="generateDocuments()">
+                    🚀 Genera Documenti
+                </button>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analisi in corso...</p>
+        </div>
+        
+        <div class="results" id="results">
+            <!-- ATS Score -->
+            <div class="card">
+                <div class="score-display">
+                    <div class="score-number" id="scoreNumber">--</div>
+                    <div class="score-label">ATS Match Score</div>
+                    <div class="score-interpretation" id="scoreInterpretation"></div>
+                </div>
+                
+                <div class="keyword-section">
+                    <h3>✅ Keyword Matchate (<span id="matchedCount">0</span>)</h3>
+                    <div class="keyword-tags" id="matchedKeywords"></div>
+                </div>
+                
+                <div class="keyword-section">
+                    <h3>⚠️ Keyword Mancanti (<span id="missingCount">0</span>)</h3>
+                    <div class="keyword-tags" id="missingKeywords"></div>
+                </div>
+            </div>
+            
+            <!-- Cover Letter -->
+            <div class="card">
+                <div class="document-output">
+                    <h3>📄 Cover Letter Generata</h3>
+                    <pre id="coverLetterOutput"></pre>
+                    <div class="download-section">
+                        <button class="copy-btn" onclick="copyToClipboard('coverLetterOutput')">📋 Copia Testo</button>
+                        <button class="download-btn" onclick="downloadAsWord('coverLetter')">📥 Download DOCX</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- CV About Section -->
+            <div class="card">
+                <div class="document-output">
+                    <h3>👤 Paragrafo "About Me" CV</h3>
+                    <pre id="aboutMeOutput"></pre>
+                    <button class="copy-btn" onclick="copyToClipboard('aboutMeOutput')">📋 Copia Testo</button>
+                </div>
+            </div>
+            
+            <!-- Suggestions -->
+            <div class="card">
+                <h3>💡 Suggerimenti per il CV</h3>
+                <ul class="suggestions-list" id="suggestionsList"></ul>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
