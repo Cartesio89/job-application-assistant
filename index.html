@@ -26,7 +26,7 @@
         .header {
             text-align: center;
             color: white;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
         }
         
         .header h1 {
@@ -39,16 +39,50 @@
             opacity: 0.9;
         }
         
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 15px 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            border-color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .card {
             background: white;
             border-radius: 12px;
             padding: 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-        }
-        
-        .input-section {
-            margin-bottom: 30px;
         }
         
         .input-section h2 {
@@ -100,6 +134,9 @@
             .row {
                 grid-template-columns: 1fr;
             }
+            .tabs {
+                flex-direction: column;
+            }
         }
         
         .btn {
@@ -120,14 +157,83 @@
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
         
-        .btn:active {
-            transform: translateY(0);
-        }
-        
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+        }
+        
+        .file-upload {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .file-upload:hover {
+            background: #f8f9fa;
+            border-color: #764ba2;
+        }
+        
+        .file-upload.dragover {
+            background: #e8eaf6;
+            border-color: #667eea;
+        }
+        
+        .file-upload input {
+            display: none;
+        }
+        
+        .file-upload-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .uploaded-file {
+            background: #e8f5e9;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .uploaded-file .remove-btn {
+            margin-left: auto;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .cv-preview {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .cv-preview h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }
+        
+        .cv-preview pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #555;
         }
         
         .results {
@@ -158,19 +264,6 @@
             font-weight: 700;
             line-height: 1;
             margin-bottom: 10px;
-        }
-        
-        .score-label {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .score-interpretation {
-            margin-top: 15px;
-            padding: 15px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            font-size: 0.95em;
         }
         
         .keyword-section {
@@ -309,6 +402,21 @@
         .download-btn:hover {
             background: #218838;
         }
+        
+        .info-badge {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #856404;
+        }
+        
+        .info-badge strong {
+            display: block;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -318,88 +426,123 @@
             <p>Genera cover letter e CV ottimizzati per ATS automaticamente</p>
         </div>
         
-        <div class="card">
-            <div class="input-section">
-                <h2>📋 Informazioni Posizione</h2>
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('martino')">
+                👤 Il Mio Profilo (Martino)
+            </button>
+            <button class="tab-btn" onclick="switchTab('generic')">
+                📄 Analizza CV Generico
+            </button>
+        </div>
+        
+        <!-- TAB 1: Martino's Profile -->
+        <div id="tab-martino" class="tab-content active">
+            <div class="card">
+                <div class="info-badge">
+                    <strong>ℹ️ Sezione Personale</strong>
+                    Questa sezione usa il tuo CV come base e genera documenti completi personalizzati per te.
+                </div>
                 
-                <div class="row">
-                    <div class="form-group">
-                        <label for="company">Nome Azienda *</label>
-                        <input type="text" id="company" placeholder="es. Brightstar" required>
+                <div class="input-section">
+                    <h2>📋 Informazioni Posizione</h2>
+                    
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="company">Nome Azienda *</label>
+                            <input type="text" id="company" placeholder="es. Brightstar" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="role">Ruolo *</label>
+                            <input type="text" id="role" placeholder="es. Digital Product Marketing Specialist" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="location">Location</label>
+                            <input type="text" id="location" placeholder="es. Roma" value="Roma">
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="role">Ruolo *</label>
-                        <input type="text" id="role" placeholder="es. Digital Product Marketing Specialist" required>
+                        <label for="jd">Job Description *</label>
+                        <textarea id="jd" placeholder="Incolla qui l'intera job description..." required></textarea>
+                    </div>
+                    
+                    <button class="btn" onclick="generateDocumentsMartino()">
+                        🚀 Genera Documenti Completi
+                    </button>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading-martino">
+                <div class="spinner"></div>
+                <p>Analisi in corso...</p>
+            </div>
+            
+            <div class="results" id="results-martino">
+                <!-- Results for Martino -->
+            </div>
+        </div>
+        
+        <!-- TAB 2: Generic CV Analysis -->
+        <div id="tab-generic" class="tab-content">
+            <div class="card">
+                <div class="info-badge">
+                    <strong>ℹ️ Analisi Generica</strong>
+                    Questa sezione analizza qualsiasi CV e fornisce suggerimenti e bozze da adattare manualmente. NON genera documenti completi.
+                </div>
+                
+                <div class="input-section">
+                    <h2>📤 Upload CV</h2>
+                    
+                    <div class="file-upload" id="fileUpload" onclick="document.getElementById('cvFile').click()">
+                        <input type="file" id="cvFile" accept=".pdf,.doc,.docx" onchange="handleFileUpload(event)">
+                        <div class="file-upload-icon">📄</div>
+                        <p style="color: #667eea; font-weight: 600; margin-bottom: 5px;">Clicca o trascina per caricare CV</p>
+                        <p style="font-size: 13px; color: #666;">Supporta: PDF, DOC, DOCX (max 5MB)</p>
+                    </div>
+                    
+                    <div id="uploadedFileInfo"></div>
+                    <div id="cvPreview"></div>
+                    
+                    <h2 style="margin-top: 30px;">📋 Job Description</h2>
+                    
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="company-gen">Nome Azienda *</label>
+                            <input type="text" id="company-gen" placeholder="es. Brightstar" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="role-gen">Ruolo *</label>
+                            <input type="text" id="role-gen" placeholder="es. Digital Product Marketing Specialist" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="location-gen">Location</label>
+                            <input type="text" id="location-gen" placeholder="es. Roma" value="Roma">
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="location">Location</label>
-                        <input type="text" id="location" placeholder="es. Roma" value="Roma">
+                        <label for="jd-gen">Job Description *</label>
+                        <textarea id="jd-gen" placeholder="Incolla qui l'intera job description..." required></textarea>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="jd">Job Description *</label>
-                    <textarea id="jd" placeholder="Incolla qui l'intera job description..." required></textarea>
-                </div>
-                
-                <button class="btn" onclick="generateDocuments()">
-                    🚀 Genera Documenti
-                </button>
-            </div>
-        </div>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Analisi in corso...</p>
-        </div>
-        
-        <div class="results" id="results">
-            <!-- ATS Score -->
-            <div class="card">
-                <div class="score-display">
-                    <div class="score-number" id="scoreNumber">--</div>
-                    <div class="score-label">ATS Match Score</div>
-                    <div class="score-interpretation" id="scoreInterpretation"></div>
-                </div>
-                
-                <div class="keyword-section">
-                    <h3>✅ Keyword Matchate (<span id="matchedCount">0</span>)</h3>
-                    <div class="keyword-tags" id="matchedKeywords"></div>
-                </div>
-                
-                <div class="keyword-section">
-                    <h3>⚠️ Keyword Mancanti (<span id="missingCount">0</span>)</h3>
-                    <div class="keyword-tags" id="missingKeywords"></div>
+                    
+                    <button class="btn" onclick="analyzeGenericCV()" id="analyzeBtn" disabled>
+                        🔍 Analizza CV e Genera Suggerimenti
+                    </button>
                 </div>
             </div>
             
-            <!-- Cover Letter -->
-            <div class="card">
-                <div class="document-output">
-                    <h3>📄 Cover Letter Generata</h3>
-                    <pre id="coverLetterOutput"></pre>
-                    <div class="download-section">
-                        <button class="copy-btn" onclick="copyToClipboard('coverLetterOutput')">📋 Copia Testo</button>
-                        <button class="download-btn" onclick="downloadAsWord('coverLetter')">📥 Download DOCX</button>
-                    </div>
-                </div>
+            <div class="loading" id="loading-generic">
+                <div class="spinner"></div>
+                <p>Analisi in corso...</p>
             </div>
             
-            <!-- CV About Section -->
-            <div class="card">
-                <div class="document-output">
-                    <h3>👤 Paragrafo "About Me" CV</h3>
-                    <pre id="aboutMeOutput"></pre>
-                    <button class="copy-btn" onclick="copyToClipboard('aboutMeOutput')">📋 Copia Testo</button>
-                </div>
-            </div>
-            
-            <!-- Suggestions -->
-            <div class="card">
-                <h3>💡 Suggerimenti per il CV</h3>
-                <ul class="suggestions-list" id="suggestionsList"></ul>
+            <div class="results" id="results-generic">
+                <!-- Results for generic CV -->
             </div>
         </div>
     </div>
