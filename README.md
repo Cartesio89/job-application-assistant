@@ -1,124 +1,152 @@
-# Job Application Assistant - Web App
+# Job Application Assistant V2 - Dual Mode
 
-Sistema automatico per generare cover letter e CV ottimizzati per ATS.
+Sistema automatico per generare cover letter e CV ottimizzati per ATS con due modalità:
+
+## 🎯 DUE MODALITÀ
+
+### 1. **Il Mio Profilo (Martino)**
+- CV hardcoded di Martino Cicerani
+- Genera documenti COMPLETI
+- Cover letter personalizzata
+- About Me ottimizzato
+- ATS Score
+- Suggerimenti specifici
+
+### 2. **Analizza CV Generico**
+- Upload qualsiasi CV (PDF/DOCX)
+- Parsing automatico contenuto
+- Confronto con JD
+- **Output:**
+  - Suggerimenti tattici
+  - Bozza About Me da personalizzare
+  - Gap analysis
+  - ATS Score
+  - NO cover letter completa (solo per Martino)
 
 ## 🚀 Deploy su Netlify
 
-### Metodo 1: Drag & Drop (più semplice)
-
+### Metodo 1: Drag & Drop
 1. Vai su https://app.netlify.com/drop
-2. Trascina la cartella `job-app-web` nell'area di drop
-3. Aspetta il deploy (30 secondi)
-4. Ottieni URL tipo: `https://random-name-123.netlify.app`
+2. Trascina la cartella `job-app-web-v2`
+3. Deploy automatico in 30 secondi
 
-### Metodo 2: Netlify CLI
+### Metodo 2: GitHub
+1. Push su GitHub repo
+2. Netlify → "Import from Git"
+3. Deploy automatico
 
-```bash
-# Installa Netlify CLI
-npm install -g netlify-cli
-
-# Vai nella cartella
-cd job-app-web
-
-# Login
-netlify login
-
-# Deploy
-netlify deploy --prod
-```
-
-### Metodo 3: GitHub + Netlify
-
-1. Crea repo GitHub con questi file
-2. Vai su https://app.netlify.com
-3. "Add new site" → "Import from Git"
-4. Collega il repo
-5. Deploy automatico
-
-## 📁 Struttura File
+## 📁 File Necessari
 
 ```
-job-app-web/
-├── index.html      # UI principale
-├── app.js          # Logic JavaScript
+job-app-web-v2/
+├── index.html      # UI con 2 tab
+├── app-v2.js       # Logic + PDF parsing
 └── README.md       # Questo file
 ```
 
-## ✨ Features
+## ✨ Features V2
 
-- ✅ Analisi automatica Job Description
-- ✅ Generazione cover letter personalizzata
-- ✅ Ottimizzazione paragrafo CV "About Me"
-- ✅ Calcolo ATS score (% match)
-- ✅ Identificazione keyword matchate/mancanti
-- ✅ Suggerimenti specifici per CV
-- ✅ Download file .doc
-- ✅ Copia negli appunti
-- ✅ Responsive mobile
+**Sezione Martino:**
+- ✅ Generazione documenti completi
+- ✅ Cover letter personalizzata
+- ✅ About Me completo
+- ✅ Download DOCX
 
-## 🎯 Come Usare
+**Sezione Generica:**
+- ✅ Upload CV (PDF/DOCX max 5MB)
+- ✅ Preview testo estratto
+- ✅ Parsing automatico (best effort)
+- ✅ Suggerimenti personalizzati
+- ✅ Bozza About Me da adattare
+- ✅ Gap analysis (cosa manca)
+- ✅ ATS Score
 
-1. Apri l'app (URL Netlify)
-2. Compila: Nome Azienda, Ruolo, Location
-3. Incolla Job Description completa
-4. Click "Genera Documenti"
-5. Review risultati:
-   - ATS Score
-   - Cover Letter (copia o download)
-   - About Me CV (copia)
-   - Suggerimenti modifiche CV
+## ⚠️ LIMITAZIONI PDF PARSING
 
-## 📊 ATS Score
+**Funziona bene con:**
+- PDF text-based (non scansioni)
+- Layout semplice e lineare
+- Font standard
 
-- **70%+** = Ottimo match (alta probabilità di passare filtri)
-- **50-70%** = Buon match (aggiungi alcune keyword)
-- **<50%** = Match basso (valuta se candidarti)
+**Può avere problemi con:**
+- PDF complessi (tabelle, colonne)
+- CV grafici/creativi
+- Scansioni (immagini)
+- Font non standard
 
-## 🔧 Personalizzazione
+**Soluzione:** L'utente vede sempre il testo estratto e può verificare se corretto.
 
-Per modificare il profilo (nome, esperienze, skills):
+## 🎯 Caso d'Uso
 
-Edita `app.js` → oggetto `profile`:
+**Scenario 1 - Martino:**
+1. Tab "Il Mio Profilo"
+2. Incolla JD
+3. Click "Genera"
+4. Download cover letter + About Me pronto
+
+**Scenario 2 - CV Generico:**
+1. Tab "Analizza CV Generico"
+2. Upload CV (PDF/DOCX)
+3. Verifica preview testo estratto
+4. Incolla JD
+5. Click "Analizza"
+6. Ricevi suggerimenti + bozza da personalizzare
+
+## 🔧 Personalizzazione Profilo Martino
+
+Per aggiornare dati Martino:
+
+Edita `app-v2.js` → oggetto `martinoProfile`:
 
 ```javascript
-const profile = {
-    name: "Tuo Nome",
-    email: "tua@email.com",
-    currentRole: "Tuo ruolo",
-    yearsExp: 5,
+const martinoProfile = {
+    name: "Nome Aggiornato",
+    yearsExp: 10,  // Aggiorna anni
     // etc...
 };
 ```
 
-## 🌐 URL Esempio
+## 📊 Output Differences
 
-Una volta deployato, l'app sarà accessibile via URL tipo:
-- https://job-application-assistant.netlify.app
-- https://martino-cv-generator.netlify.app
+| Feature | Martino | Generico |
+|---------|---------|----------|
+| Cover Letter Completa | ✅ | ❌ |
+| About Me Completo | ✅ | ⚠️ Bozza |
+| ATS Score | ✅ | ✅ |
+| Suggerimenti | ✅ | ✅ |
+| Download DOCX | ✅ | ❌ |
+| Gap Analysis | ✅ | ✅ |
 
-Puoi personalizzare il nome del sito nelle impostazioni Netlify.
+## 💡 Best Practices
 
-## 💡 Tips
+**Per sezione Martino:**
+- Usa per tue candidature reali
+- Download documenti pronti
+- Applica suggerimenti al CV
 
-- Salva il URL nei preferiti per accesso rapido
-- Usa su mobile per candidature al volo
-- Testa con diverse JD per vedere variazioni
-- Review sempre manualmente prima di inviare
+**Per sezione Generica:**
+- Usa per quick check altri CV
+- Verifica sempre testo estratto
+- Personalizza bozze generate
+- Non usare documenti così come sono
 
 ## 🐛 Troubleshooting
 
-**App non si apre dopo deploy:**
-- Controlla che index.html sia nella root
-- Verifica la console browser (F12) per errori
+**Parsing PDF fallisce:**
+- Prova con DOCX
+- O copia/incolla contenuto CV manualmente
+- Usa solo per CV text-based
 
-**Download non funziona:**
-- Usa "Copia" e incolla in Word
-- Il browser potrebbe bloccare download automatici
+**Testo estratto sbagliato:**
+- Normale per CV complessi
+- Funzionalità è "best effort"
+- Preview serve proprio per verificare
 
-**Score sempre basso:**
-- JD troppo corta o generica
-- Aggiungi manualmente keyword rilevanti
+**Bozza About Me troppo generica:**
+- È intenzionale
+- Utente DEVE personalizzare
+- Fornisce struttura base
 
 ## 📝 Licenza
 
-© 2025 Martino Cicerani - Uso personale
+© 2025 Martino Cicerani - Uso personale e professionale
