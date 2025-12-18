@@ -1,80 +1,65 @@
-# Job Application Assistant V2 - Dual Mode
+# Job Application Assistant - Enhanced Version
 
-Sistema automatico per generare cover letter e CV ottimizzati per ATS con due modalità:
+Sistema automatico per generare cover letter e CV ottimizzati per ATS con due modalità operative.
 
 ## 🎯 DUE MODALITÀ
 
 ### 1. **Il Mio Profilo (Martino)**
-- CV hardcoded di Martino Cicerani
-- Genera documenti COMPLETI
-- Cover letter personalizzata
-- About Me ottimizzato
-- ATS Score
-- Suggerimenti specifici
+Sezione personale basata sul CV di Martino Cicerani.
+
+**Output:**
+- ✅ Cover letter COMPLETA personalizzata
+- ✅ About Me COMPLETO ottimizzato
+- ✅ ATS Score preciso
+- ✅ Suggerimenti specifici
+- ✅ Download DOCX
 
 ### 2. **Analizza CV Generico**
-- Upload qualsiasi CV (PDF/DOCX)
-- Parsing automatico contenuto
-- Confronto con JD
-- **Output:**
-  - Suggerimenti tattici
-  - Bozza About Me da personalizzare
-  - Gap analysis
-  - ATS Score
-  - NO cover letter completa (solo per Martino)
+Analisi per qualsiasi CV caricato (PDF/DOCX).
+
+**Output:**
+- ✅ Suggerimenti tattici
+- ✅ Bozza About Me da personalizzare
+- ✅ Gap analysis
+- ✅ ATS Score
+- ⚠️ NON genera cover letter completa
 
 ## 🚀 Deploy su Netlify
 
 ### Metodo 1: Drag & Drop
 1. Vai su https://app.netlify.com/drop
-2. Trascina la cartella `job-app-web-v2`
+2. Trascina cartella con i 3 file
 3. Deploy automatico in 30 secondi
 
 ### Metodo 2: GitHub
-1. Push su GitHub repo
+1. Push file su GitHub
 2. Netlify → "Import from Git"
-3. Deploy automatico
+3. Deploy automatico ad ogni commit
 
 ## 📁 File Necessari
 
 ```
-job-app-web-v2/
-├── index.html      # UI con 2 tab
-├── app-v2.js       # Logic + PDF parsing
-└── README.md       # Questo file
+├── index.html    # UI con 2 tab
+├── app.js        # Engine completo
+└── README.md     # Documentazione
 ```
 
-## ✨ Features V2
+## ✨ Features Chiave
 
-**Sezione Martino:**
-- ✅ Generazione documenti completi
-- ✅ Cover letter personalizzata
-- ✅ About Me completo
-- ✅ Download DOCX
+**Keyword Filtering Avanzato:**
+- Stopwords espanse (100+ termini filtrati)
+- Word boundaries per matching accurato
+- Minimo 4 lettere per keyword significative
 
-**Sezione Generica:**
-- ✅ Upload CV (PDF/DOCX max 5MB)
-- ✅ Preview testo estratto
-- ✅ Parsing automatico (best effort)
-- ✅ Suggerimenti personalizzati
-- ✅ Bozza About Me da adattare
-- ✅ Gap analysis (cosa manca)
-- ✅ ATS Score
+**Tool Detection Migliorato:**
+- Pattern matching con regex avanzate
+- Rilevamento Excel/PowerPoint affidabile
+- Supporto tool marketing/analytics/design
 
-## ⚠️ LIMITAZIONI PDF PARSING
-
-**Funziona bene con:**
-- PDF text-based (non scansioni)
-- Layout semplice e lineare
-- Font standard
-
-**Può avere problemi con:**
-- PDF complessi (tabelle, colonne)
-- CV grafici/creativi
-- Scansioni (immagini)
-- Font non standard
-
-**Soluzione:** L'utente vede sempre il testo estratto e può verificare se corretto.
+**Analisi Intelligente:**
+- Focus automatico (media/product/creative)
+- Suggerimenti context-aware
+- ATS scoring preciso
 
 ## 🎯 Caso d'Uso
 
@@ -82,71 +67,63 @@ job-app-web-v2/
 1. Tab "Il Mio Profilo"
 2. Incolla JD
 3. Click "Genera"
-4. Download cover letter + About Me pronto
+4. Download documenti completi
 
 **Scenario 2 - CV Generico:**
 1. Tab "Analizza CV Generico"
 2. Upload CV (PDF/DOCX)
-3. Verifica preview testo estratto
+3. Verifica preview
 4. Incolla JD
-5. Click "Analizza"
-6. Ricevi suggerimenti + bozza da personalizzare
+5. Ricevi suggerimenti
 
-## 🔧 Personalizzazione Profilo Martino
+## 🔧 Personalizzazione Profilo
 
-Per aggiornare dati Martino:
-
-Edita `app-v2.js` → oggetto `martinoProfile`:
+Edita `app.js` → `martinoProfile`:
 
 ```javascript
 const martinoProfile = {
-    name: "Nome Aggiornato",
-    yearsExp: 10,  // Aggiorna anni
+    name: "Tuo Nome",
+    email: "tua@email.com",
+    yearsExp: 8,
+    coreSkills: [...],
     // etc...
 };
 ```
 
-## 📊 Output Differences
+## ⚠️ Limitazioni PDF Parsing
 
-| Feature | Martino | Generico |
-|---------|---------|----------|
-| Cover Letter Completa | ✅ | ❌ |
-| About Me Completo | ✅ | ⚠️ Bozza |
-| ATS Score | ✅ | ✅ |
-| Suggerimenti | ✅ | ✅ |
-| Download DOCX | ✅ | ❌ |
-| Gap Analysis | ✅ | ✅ |
+**Funziona bene:** PDF text-based, layout semplice
+**Problemi:** CV grafici, scansioni, layout complessi
 
-## 💡 Best Practices
+**Soluzione:** Preview sempre visibile per verifica
 
-**Per sezione Martino:**
-- Usa per tue candidature reali
-- Download documenti pronti
-- Applica suggerimenti al CV
+## 📊 Miglioramenti V2
 
-**Per sezione Generica:**
-- Usa per quick check altri CV
-- Verifica sempre testo estratto
+- ✅ Stopwords espanse (you, have, will, etc.)
+- ✅ Tool detection con word boundaries
+- ✅ Keyword minimo 4 lettere
+- ✅ Pattern matching avanzato
+- ✅ Focus detection migliorato
+- ✅ Suggerimenti più specifici
+
+## 💡 Tips
+
+- Verifica sempre testo estratto da PDF
 - Personalizza bozze generate
-- Non usare documenti così come sono
+- Usa Tab Martino per candidature reali
+- Tab Generico per quick check
 
 ## 🐛 Troubleshooting
 
-**Parsing PDF fallisce:**
-- Prova con DOCX
-- O copia/incolla contenuto CV manualmente
-- Usa solo per CV text-based
+**Q: Keyword irrilevanti (you, will, etc.)?**
+A: FIXED - Stopwords ora filtrano questi termini
 
-**Testo estratto sbagliato:**
-- Normale per CV complessi
-- Funzionalità è "best effort"
-- Preview serve proprio per verificare
+**Q: Excel non rilevato?**
+A: FIXED - Word boundaries ora catturano Excel correttamente
 
-**Bozza About Me troppo generica:**
-- È intenzionale
-- Utente DEVE personalizzare
-- Fornisce struttura base
+**Q: Score troppo basso?**
+A: Keyword filtering migliorato, score ora più accurato
 
 ## 📝 Licenza
 
-© 2025 Martino Cicerani - Uso personale e professionale
+© 2025 Martino Cicerani - Uso personale
