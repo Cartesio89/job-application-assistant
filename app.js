@@ -1,5 +1,5 @@
-// Job Application System V2 - With Generic CV Analysis
-// Includes PDF parsing capability
+// Job Application System V2 - Enhanced Version
+// Dual mode with improved keyword filtering and tool detection
 
 // ============================================
 // MARTINO'S PROFILE (Hardcoded from CV)
@@ -16,7 +16,8 @@ const martinoProfile = {
         "Performance Analysis", "Data Analysis", "Campaign Optimization",
         "Meta Ads", "Google Ads", "TikTok", "Programmatic",
         "Google Analytics 4", "Looker Studio", "Power BI",
-        "AI for Marketing", "Prompt Engineering", "Team Management"
+        "AI for Marketing", "Prompt Engineering", "Team Management",
+        "Excel", "PowerPoint"
     ],
     brandsManaged: ["Honda", "Levi's", "Acuvue", "Ceres"],
     aiCertifications: [
@@ -33,7 +34,6 @@ let uploadedFileName = '';
 // TAB SWITCHING
 // ============================================
 function switchTab(tabName) {
-    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
@@ -41,23 +41,36 @@ function switchTab(tabName) {
         btn.classList.remove('active');
     });
     
-    // Show selected tab
     document.getElementById(`tab-${tabName}`).classList.add('active');
     event.target.classList.add('active');
 }
 
 // ============================================
-// COMMON FUNCTIONS
+// COMMON FUNCTIONS - ENHANCED
 // ============================================
+
+// Expanded stopwords list to filter out common non-meaningful words
 const stopwords = new Set([
+    // Italian
     'di', 'a', 'da', 'in', 'con', 'su', 'per', 'tra', 'fra',
     'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'una', 'uno',
-    'e', 'o', 'ma', 'se', 'che', 'chi', 'cui',
-    'the', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'at', 'with'
+    'e', 'o', 'ma', 'se', 'che', 'chi', 'cui', 'del', 'della',
+    'delle', 'dei', 'nel', 'nella', 'alle', 'agli', 'dai', 'dalle',
+    // English - Common words
+    'the', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'at', 'with',
+    'you', 'your', 'we', 'our', 'will', 'have', 'has', 'who', 'what', 
+    'when', 'where', 'why', 'how', 'this', 'that', 'these', 'those',
+    'are', 'is', 'was', 'were', 'been', 'being', 'can', 'could', 
+    'may', 'might', 'must', 'shall', 'should', 'would',
+    // Job posting generic terms
+    'looking', 'support', 'work', 'working', 'offer', 'role',
+    'within', 'through', 'including', 'such', 'experience',
+    'years', 'least', 'preferred', 'required', 'ability'
 ]);
 
 function extractKeywords(jdText, topN = 20) {
-    const words = jdText.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+    // Extract words with minimum 4 letters to filter out most stopwords naturally
+    const words = jdText.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
     const filtered = words.filter(w => !stopwords.has(w));
     
     const freq = {};
@@ -65,6 +78,7 @@ function extractKeywords(jdText, topN = 20) {
         freq[word] = (freq[word] || 0) + 1;
     });
     
+    // Get top keywords sorted by frequency
     return Object.entries(freq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, topN)
@@ -79,36 +93,55 @@ function extractRequirements(jdText) {
         softSkills: []
     };
     
+    // Enhanced tool patterns with word boundaries for better matching
     const toolPatterns = [
-        /adobe creative suite|photoshop|illustrator|premiere|after effects|indesign/g,
-        /excel|powerpoint|power bi|looker studio|google analytics|tableau/g,
-        /meta|facebook|instagram|tiktok|linkedin|youtube/g,
-        /jira|trello|asana|monday/g,
-        /canva|figma|sketch/g
+        // Adobe Suite
+        /adobe creative suite|photoshop|illustrator|premiere|after effects|indesign/gi,
+        // Microsoft & Data Tools - Added word boundaries to catch Excel properly
+        /\bexcel\b|\bpowerpoint\b|power bi|looker studio|google analytics|tableau/gi,
+        // Social Media Platforms
+        /\bmeta\b|facebook|instagram|tiktok|linkedin|youtube/gi,
+        // Project Management
+        /\bjira\b|trello|asana|monday\.com|confluence/gi,
+        // Design Tools
+        /canva|figma|sketch|adobe xd/gi,
+        // Marketing/Analytics
+        /google ads|meta ads|dv360|programmatic|tag manager|analytics/gi
     ];
     
     toolPatterns.forEach(pattern => {
-        const matches = jdLower.match(pattern) || [];
-        requirements.tools.push(...matches);
+        const matches = jdText.match(pattern) || [];
+        requirements.tools.push(...matches.map(m => m.toLowerCase()));
     });
     
+    // Remove duplicates and normalize
     requirements.tools = [...new Set(requirements.tools)];
     
-    const expMatch = jdLower.match(/(\d+)[\s-]+(anni?|years?)/);
+    // Extract years of experience
+    const expMatch = jdLower.match(/(\d+)\+?\s*(?:years?|anni?)[\s\w]*(?:experience|esperienza)/i);
     if (expMatch) {
         requirements.experienceYears = parseInt(expMatch[1]);
     }
     
-    const softSkillsKw = [
-        'team', 'comunicazione', 'problem solving', 'autonomia',
-        'creatività', 'organizzazione', 'flessibilità', 'leadership'
+    // Soft skills detection
+    const softSkillsPatterns = [
+        { pattern: /team\s*(?:work|working|management|collaboration)/gi, skill: 'team work' },
+        { pattern: /comunicazione|communication/gi, skill: 'communication' },
+        { pattern: /problem\s*solving/gi, skill: 'problem solving' },
+        { pattern: /autonomia|autonomy|independent/gi, skill: 'autonomy' },
+        { pattern: /creatività|creativity|creative/gi, skill: 'creativity' },
+        { pattern: /organizzazione|organization/gi, skill: 'organization' },
+        { pattern: /leadership/gi, skill: 'leadership' },
+        { pattern: /analytical|analytic/gi, skill: 'analytical skills' }
     ];
     
-    softSkillsKw.forEach(skill => {
-        if (jdLower.includes(skill)) {
+    softSkillsPatterns.forEach(({ pattern, skill }) => {
+        if (pattern.test(jdText)) {
             requirements.softSkills.push(skill);
         }
     });
+    
+    requirements.softSkills = [...new Set(requirements.softSkills)];
     
     return requirements;
 }
@@ -120,7 +153,9 @@ function calculateATSScore(documentText, jdKeywords) {
     const missing = [];
     
     jdKeywords.forEach(kw => {
-        if (docLower.includes(kw.word)) {
+        // Use word boundary for more accurate matching
+        const regex = new RegExp(`\\b${kw.word}\\b`, 'i');
+        if (regex.test(documentText)) {
             matches.push(kw.word);
         } else {
             missing.push(kw.word);
@@ -155,8 +190,9 @@ function generateCoverLetterMartino(jdText, company, role, location) {
     const reqs = extractRequirements(jdText);
     const jdLower = jdText.toLowerCase();
     
-    const isCreative = /creative|grafica|design|video|contenuti/.test(jdLower);
-    const isProduct = /product|prodotto|roadmap|sviluppo/.test(jdLower);
+    const isCreative = /creative|grafica|design|video|contenuti|content creation/i.test(jdText);
+    const isProduct = /product|prodotto|roadmap|sviluppo|launch/i.test(jdText);
+    const isMedia = /media\s+(?:strategy|planning|buying|expert)|advertising/i.test(jdText);
     
     let letter = `Oggetto: Candidatura per ${role} – ${location}
 
@@ -164,22 +200,60 @@ Gentile Team Selezione ${company},
 
 desidero candidarmi per la posizione di ${role}. Con oltre ${martinoProfile.yearsExp} anni di esperienza in digital marketing e gestione di campagne per brand internazionali, ritengo di poter portare un contributo concreto al vostro team.`;
     
-    if (isCreative) {
-        letter += `\n\nNel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, ho sviluppato competenze nella creazione e ottimizzazione di contenuti digitali multi-canale, collaborando costantemente con team creativi per sviluppare asset pubblicitari performanti. Ho esperienza nella gestione di progetti che integrano storytelling visivo, video content e design strategico.`;
+    // Adapt paragraph based on job focus
+    if (isMedia) {
+        letter += `
+
+Nel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, gestisco strategie media end-to-end per brand come ${martinoProfile.brandsManaged.slice(0, 3).join(', ')}, coordinando agenzie media e partner digitali. Ho esperienza diretta nella pianificazione e acquisto media su piattaforme Meta, Google, TikTok e programmatic, con focus su ottimizzazione del ROI e analisi delle performance. Gestisco budget multi-milionari e collaboro con team cross-funzionali per garantire l'allineamento strategico delle campagne.`;
+    } else if (isCreative) {
+        letter += `
+
+Nel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, ho sviluppato competenze nella creazione e ottimizzazione di contenuti digitali multi-canale, collaborando costantemente con team creativi per sviluppare asset pubblicitari performanti. Ho esperienza nella gestione di progetti che integrano storytelling visivo, video content e design strategico, garantendo coerenza del brand su tutti i touchpoint digitali.`;
     } else if (isProduct) {
-        letter += `\n\nNel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. Ho esperienza diretta nell'analisi dei trend di mercato, nella valutazione di fornitori e soluzioni tecnologiche, e nella collaborazione con team cross-funzionali (IT, Legal, Marketing) per portare prodotti digitali sul mercato.`;
+        letter += `
+
+Nel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. Ho esperienza diretta nell'analisi dei trend di mercato, nella valutazione di fornitori e soluzioni tecnologiche, e nella collaborazione con team cross-funzionali (IT, Legal, Marketing) per portare prodotti digitali sul mercato. Gestisco l'intero ciclo: dalla roadmap strategica al monitoraggio post-lancio con KPI definiti.`;
     } else {
-        const tools = reqs.tools.slice(0, 3).join(', ') || 'Google Analytics 4, Power BI e Looker Studio';
-        letter += `\n\nNel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, gestisco strategie di advertising per brand come ${martinoProfile.brandsManaged.slice(0, 3).join(', ')}, con focus su ottimizzazione delle performance e analisi data-driven. Ho esperienza nella gestione di budget multi-canale, nel monitoraggio di KPI attraverso strumenti come ${tools}, e nell'implementazione di strategie di testing per massimizzare il ROI.`;
+        // Default: Performance/Analytics focus
+        const tools = reqs.tools.length > 0 
+            ? reqs.tools.slice(0, 4).join(', ')
+            : 'Google Analytics 4, Power BI, Looker Studio';
+        letter += `
+
+Nel mio ruolo attuale di ${martinoProfile.currentRole} presso ${martinoProfile.company}, gestisco strategie di advertising per brand come ${martinoProfile.brandsManaged.slice(0, 3).join(', ')}, con focus su ottimizzazione delle performance e analisi data-driven. Ho esperienza nella gestione di budget multi-canale, nel monitoraggio di KPI attraverso strumenti come ${tools}, e nell'implementazione di strategie di testing A/B per massimizzare il ROI e guidare decisioni strategiche basate sui dati.`;
     }
     
+    // Add tools paragraph if relevant tools detected
     if (reqs.tools.length > 0) {
-        letter += `\n\nHo solida padronanza di ${reqs.tools.slice(0, 4).join(', ')} per analisi e reportistica. La mia esperienza con clienti internazionali mi ha permesso di sviluppare eccellenti competenze in inglese e capacità di coordinamento con stakeholder globali.`;
+        const relevantTools = reqs.tools.filter(tool => 
+            !martinoProfile.coreSkills.some(skill => 
+                skill.toLowerCase().includes(tool.toLowerCase())
+            )
+        );
+        
+        if (relevantTools.length > 0 && relevantTools.length < 5) {
+            letter += `
+
+Ho inoltre esperienza con ${reqs.tools.slice(0, 5).join(', ')} per la gestione operativa delle campagne e l'analisi delle performance. La mia capacità di lavorare con team internazionali e gestire stakeholder a diversi livelli organizzativi mi ha permesso di sviluppare eccellenti competenze comunicative in inglese.`;
+        }
     }
     
-    letter += `\n\nUn aspetto che mi differenzia è l'integrazione di competenze in AI applicata al marketing, certificate attraverso corsi specializzati della Fastweb Digital Academy (${martinoProfile.aiCertifications.slice(0, 3).join(', ')}). Ho utilizzato queste competenze per sviluppare progetti personali che includono web development, strumenti di automazione e gestione data-driven di un property Airbnb, ottenendo risultati misurabili in termini di engagement e conversioni.`;
+    // AI differentiator paragraph
+    letter += `
+
+Un aspetto che mi differenzia è l'integrazione di competenze in AI applicata al marketing, certificate attraverso corsi specializzati della Fastweb Digital Academy (${martinoProfile.aiCertifications.slice(0, 3).join(', ')}). Ho utilizzato queste competenze per sviluppare progetti personali che includono web development, strumenti di automazione e gestione data-driven di un property Airbnb, ottenendo risultati misurabili in termini di engagement e conversioni.`;
     
-    letter += `\n\nSono motivato dalla possibilità di contribuire agli obiettivi di ${company} e mettere a disposizione un approccio analitico, orientato ai risultati e in continua evoluzione rispetto alle nuove tecnologie digitali.\n\nResto a disposizione per un colloquio conoscitivo.\n\nCordiali saluti,\n\n${martinoProfile.name}\n${martinoProfile.email} | ${martinoProfile.phone}`;
+    // Closing
+    letter += `
+
+Sono motivato dalla possibilità di contribuire agli obiettivi di ${company} e mettere a disposizione un approccio analitico, orientato ai risultati e in continua evoluzione rispetto alle nuove tecnologie digitali.
+
+Resto a disposizione per un colloquio conoscitivo.
+
+Cordiali saluti,
+
+${martinoProfile.name}
+${martinoProfile.email} | ${martinoProfile.phone}`;
     
     return letter;
 }
@@ -189,11 +263,12 @@ function generateCVAboutSectionMartino(jdText) {
     const jdLower = jdText.toLowerCase();
     
     const focusAreas = [];
-    if (/performance|roi|kpi/.test(jdLower)) focusAreas.push("performance analysis");
-    if (/strategy|strategic/.test(jdLower)) focusAreas.push("strategic planning");
-    if (/product/.test(jdLower)) focusAreas.push("product management");
-    if (/creative|content/.test(jdLower)) focusAreas.push("content creation");
-    if (/data|analytics/.test(jdLower)) focusAreas.push("data analysis");
+    if (/media\s+(?:strategy|planning|buying)|advertising/i.test(jdText)) focusAreas.push("media strategy and planning");
+    if (/performance|roi|kpi|optimization/i.test(jdText)) focusAreas.push("performance analysis");
+    if (/strategy|strategic/i.test(jdText)) focusAreas.push("strategic planning");
+    if (/product/i.test(jdText)) focusAreas.push("product management");
+    if (/creative|content/i.test(jdText)) focusAreas.push("content creation");
+    if (/data|analytics/i.test(jdText)) focusAreas.push("data analysis");
     
     if (focusAreas.length === 0) {
         focusAreas.push("digital strategy", "campaign optimization");
@@ -201,19 +276,30 @@ function generateCVAboutSectionMartino(jdText) {
     
     let about = `Digital Media Planner with over ${martinoProfile.yearsExp} years of experience in ${focusAreas.slice(0, 2).join(' and ')} for international brands. `;
     
+    // Add relevant tools
     if (reqs.tools.length > 0) {
-        about += `Proficient in ${reqs.tools.slice(0, 4).join(', ')}, `;
+        const toolsToMention = reqs.tools.slice(0, 4).join(', ');
+        about += `Proficient in ${toolsToMention}, `;
     }
     
     about += `specialized in optimizing omnichannel strategies and leveraging data-driven insights to improve marketing performance. `;
     
-    if (/ai|artificial intelligence|automation/.test(jdLower)) {
+    // Add experience managing agencies/teams if relevant
+    if (/agenc|partner|vendor|stakeholder/i.test(jdText)) {
+        about += "Experienced in managing agencies, partners and cross-functional teams to deliver integrated marketing campaigns. ";
+    }
+    
+    // Add AI certification if relevant
+    if (/\bai\b|artificial intelligence|automation|machine learning/i.test(jdText)) {
         about += "Certified in AI-driven marketing with hands-on experience in implementing AI tools for campaign optimization and automation. ";
     }
     
-    if (/manager|specialist|lead/.test(jdLower)) {
-        const targetRole = /product/.test(jdLower) ? 'product management' : 'strategic marketing roles';
-        about += `Currently seeking opportunities in ${targetRole} to leverage analytical skills and drive business growth.`;
+    // Add career goal if senior role
+    if (/manager|director|lead|head|senior/i.test(jdText)) {
+        const targetRole = /product/i.test(jdText) ? 'product management' : 
+                          /media/i.test(jdText) ? 'media strategy leadership' :
+                          'strategic marketing roles';
+        about += `Currently seeking opportunities in ${targetRole} to leverage analytical skills, strategic thinking and drive business growth.`;
     }
     
     return about.trim();
@@ -224,36 +310,53 @@ function generateSuggestionsMartino(jdText) {
     const jdLower = jdText.toLowerCase();
     const reqs = extractRequirements(jdText);
     
-    if (/budget|costi/.test(jdLower)) {
+    // Specific tactical suggestions based on JD content
+    if (/budget|cost/i.test(jdText)) {
         suggestions.push("📊 Evidenzia esperienza in budget management e negoziazione con fornitori nella sezione Work Experience");
     }
     
-    if (/team|coordinamento/.test(jdLower)) {
+    if (/team|cross-functional|stakeholder/i.test(jdText)) {
         suggestions.push("👥 Sottolinea la gestione di team e coordinamento stakeholder cross-funzionali");
     }
     
-    if (/international|globale/.test(jdLower)) {
+    if (/international|global/i.test(jdText)) {
         suggestions.push("🌍 Metti in risalto l'esperienza con clienti internazionali (Honda, Levi's, Acuvue)");
     }
     
-    if (reqs.experienceYears && reqs.experienceYears <= 3) {
-        suggestions.push("⚡ Il ruolo richiede meno esperienza: puoi enfatizzare progetti side e certificazioni recenti");
+    if (reqs.experienceYears && reqs.experienceYears <= martinoProfile.yearsExp - 3) {
+        suggestions.push(`⚡ Il ruolo richiede ${reqs.experienceYears} anni di esperienza: puoi enfatizzare anche progetti side e certificazioni recenti`);
     }
     
-    if (/product/.test(jdLower)) {
+    if (/product|launch|roadmap/i.test(jdText)) {
         suggestions.push("🎯 Aggiungi bullet point su lancio prodotti e roadmap nella sezione UM Italia");
     }
     
-    if (/creative|contenuti/.test(jdLower)) {
+    if (/creative|content|storytelling/i.test(jdText)) {
         suggestions.push("🎨 Evidenzia collaborazione con team creativi e sviluppo asset performanti");
     }
     
-    const missingTools = ['excel', 'powerpoint', 'power bi', 'google analytics', 'jira']
-        .filter(tool => jdLower.includes(tool) && 
-                       !martinoProfile.coreSkills.some(skill => skill.toLowerCase().includes(tool)));
+    if (/agenc|partner|vendor/i.test(jdText)) {
+        suggestions.push("🤝 Sottolinea esperienza nella gestione di agenzie media e partner tecnologici");
+    }
     
-    if (missingTools.length > 0) {
-        suggestions.push(`⚠️ Keyword mancanti importanti: ${missingTools.join(', ')} - valuta se hai esperienza anche indiretta da menzionare`);
+    if (/media\s+(?:planning|buying|strategy)/i.test(jdText)) {
+        suggestions.push("📺 Evidenzia esperienza in media planning end-to-end e acquisto media su piattaforme programmatic");
+    }
+    
+    // Check for missing critical tools
+    const criticalTools = ['excel', 'powerpoint', 'power bi', 'google analytics', 'jira'];
+    const missingCritical = criticalTools.filter(tool => 
+        new RegExp(`\\b${tool}\\b`, 'i').test(jdText) && 
+        !martinoProfile.coreSkills.some(skill => skill.toLowerCase().includes(tool))
+    );
+    
+    if (missingCritical.length > 0) {
+        suggestions.push(`⚠️ Tool mancanti nel CV ma richiesti: ${missingCritical.join(', ')} - aggiungili esplicitamente se hai esperienza`);
+    }
+    
+    // Soft skills suggestions
+    if (reqs.softSkills.length > 0 && /leadership|management/i.test(jdText)) {
+        suggestions.push("💪 Aggiungi esempi concreti di leadership e gestione team nella sezione esperienza");
     }
     
     return suggestions;
@@ -327,7 +430,7 @@ function displayResultsMartino(atsScore, coverLetter, aboutMe, suggestions, comp
                 <pre id="coverLetterOutput">${coverLetter}</pre>
                 <div class="download-section">
                     <button class="copy-btn" onclick="copyToClipboard('coverLetterOutput')">📋 Copia Testo</button>
-                    <button class="download-btn" onclick="downloadAsWord('${company}', '${role}', 'coverLetter')">📥 Download DOCX</button>
+                    <button class="download-btn" onclick="downloadAsWord('${company.replace(/'/g, "\\'")}', '${role.replace(/'/g, "\\'")}', 'coverLetter')">📥 Download DOCX</button>
                 </div>
             </div>
         </div>
@@ -383,7 +486,6 @@ function handleFileUpload(event) {
         if (file.type === 'application/pdf') {
             parsePDF(e.target.result);
         } else {
-            // For DOC/DOCX, we'll extract what we can as plain text
             uploadedCVText = e.target.result;
             showCVPreview(uploadedCVText);
         }
@@ -400,7 +502,6 @@ function handleFileUpload(event) {
 
 async function parsePDF(arrayBuffer) {
     try {
-        // Simple PDF text extraction (works for text-based PDFs)
         const text = await extractTextFromPDF(arrayBuffer);
         uploadedCVText = text;
         showCVPreview(text);
@@ -410,13 +511,10 @@ async function parsePDF(arrayBuffer) {
     }
 }
 
-// Simplified PDF text extraction (basic implementation)
 async function extractTextFromPDF(arrayBuffer) {
-    // Convert ArrayBuffer to string for basic text extraction
     const uint8Array = new Uint8Array(arrayBuffer);
     let text = '';
     
-    // Basic PDF text extraction (limited, works only for simple PDFs)
     for (let i = 0; i < uint8Array.length; i++) {
         if (uint8Array[i] >= 32 && uint8Array[i] <= 126) {
             text += String.fromCharCode(uint8Array[i]);
@@ -425,7 +523,6 @@ async function extractTextFromPDF(arrayBuffer) {
         }
     }
     
-    // Clean up the text
     text = text.replace(/[^\x20-\x7E\n]/g, ' ');
     text = text.replace(/\s+/g, ' ');
     text = text.replace(/\n\s+/g, '\n');
@@ -490,16 +587,9 @@ function performCVAnalysis(cvText, jdText, company, role, location) {
     const reqs = extractRequirements(jdText);
     const atsScore = calculateATSScore(cvText, keywords);
     
-    // Extract basic info from CV
     const cvInfo = extractCVInfo(cvText);
-    
-    // Generate suggestions
     const suggestions = generateGenericSuggestions(cvText, jdText, reqs, atsScore);
-    
-    // Generate draft About Me
     const draftAboutMe = generateDraftAboutMe(cvInfo, jdText, reqs);
-    
-    // Gap analysis
     const gaps = identifyGaps(cvText, jdText, reqs);
     
     return {
@@ -516,11 +606,9 @@ function performCVAnalysis(cvText, jdText, company, role, location) {
 function extractCVInfo(cvText) {
     const cvLower = cvText.toLowerCase();
     
-    // Try to extract basic info
     const emailMatch = cvText.match(/[\w.-]+@[\w.-]+\.\w+/);
     const phoneMatch = cvText.match(/[\d\s\+\-\(\)]{10,}/);
     
-    // Extract years of experience (rough estimate)
     const yearMatches = cvText.match(/\b(19|20)\d{2}\b/g);
     let yearsExp = 0;
     if (yearMatches && yearMatches.length >= 2) {
@@ -528,14 +616,19 @@ function extractCVInfo(cvText) {
         const firstYear = years[0];
         const currentYear = new Date().getFullYear();
         yearsExp = currentYear - firstYear;
-        if (yearsExp > 50) yearsExp = 0; // Sanity check
+        if (yearsExp > 50) yearsExp = 0;
     }
     
-    // Extract skills mentioned
-    const commonSkills = ['excel', 'powerpoint', 'google analytics', 'meta', 'facebook', 
-                         'instagram', 'tiktok', 'jira', 'python', 'javascript', 'html', 
-                         'css', 'sql', 'tableau', 'power bi'];
-    const foundSkills = commonSkills.filter(skill => cvLower.includes(skill));
+    const commonSkills = [
+        'excel', 'powerpoint', 'google analytics', 'power bi', 'looker studio',
+        'meta', 'facebook', 'instagram', 'tiktok', 'linkedin',
+        'jira', 'trello', 'asana',
+        'python', 'javascript', 'html', 'css', 'sql',
+        'tableau', 'photoshop', 'illustrator'
+    ];
+    const foundSkills = commonSkills.filter(skill => 
+        new RegExp(`\\b${skill}\\b`, 'i').test(cvText)
+    );
     
     return {
         email: emailMatch ? emailMatch[0] : 'Non rilevata',
@@ -550,39 +643,40 @@ function generateGenericSuggestions(cvText, jdText, reqs, atsScore) {
     const cvLower = cvText.toLowerCase();
     const jdLower = jdText.toLowerCase();
     
-    // Suggest highlighting relevant experience
-    if (/manager|management/.test(jdLower) && /manager|gestione/.test(cvLower)) {
+    if (/manager|management|lead|director/i.test(jdText) && /manager|gestione|lead/i.test(cvText)) {
         suggestions.push("✅ Hai esperienza di management nel CV - evidenziala maggiormente nella sezione esperienza");
     }
     
-    // Suggest adding missing keywords
-    if (atsScore.missing.length > 5) {
-        suggestions.push(`⚠️ Mancano ${atsScore.missing.length} keyword importanti. Considera di aggiungere: ${atsScore.missing.slice(0, 5).join(', ')}`);
+    if (atsScore.missing.length > 8) {
+        suggestions.push(`⚠️ Mancano ${atsScore.missing.length} keyword importanti. Priorità: ${atsScore.missing.slice(0, 5).join(', ')}`);
+    } else if (atsScore.missing.length > 4) {
+        suggestions.push(`⚠️ Considera di aggiungere queste keyword: ${atsScore.missing.slice(0, 5).join(', ')}`);
     }
     
-    // Tool-specific suggestions
     reqs.tools.forEach(tool => {
-        if (!cvLower.includes(tool)) {
+        if (!new RegExp(`\\b${tool}\\b`, 'i').test(cvText)) {
             suggestions.push(`🔧 Aggiungi "${tool}" alle competenze se hai esperienza (anche indiretta)`);
         }
     });
     
-    // Experience level check
     if (reqs.experienceYears) {
         suggestions.push(`📅 La posizione richiede ${reqs.experienceYears} anni di esperienza. Assicurati che sia chiaro nel CV`);
     }
     
-    // Generic advice
-    if (/product|prodotto/.test(jdLower)) {
+    if (/product|prodotto|launch/i.test(jdText)) {
         suggestions.push("🎯 Enfatizza progetti dove hai contribuito allo sviluppo/lancio di prodotti o servizi");
     }
     
-    if (/data|analytics|performance/.test(jdLower)) {
-        suggestions.push("📊 Metti in evidenza competenze di analisi dati e ottimizzazione performance");
+    if (/data|analytics|performance|kpi/i.test(jdText)) {
+        suggestions.push("📊 Metti in evidenza competenze di analisi dati e ottimizzazione performance con metriche concrete");
     }
     
-    if (/team|collaboration|cross-functional/.test(jdLower)) {
+    if (/team|collaboration|cross-functional/i.test(jdText)) {
         suggestions.push("👥 Sottolinea esperienze di lavoro in team e collaborazione cross-funzionale");
+    }
+    
+    if (/agenc|partner|vendor|stakeholder/i.test(jdText)) {
+        suggestions.push("🤝 Evidenzia esperienza nella gestione di agenzie, partner o stakeholder esterni");
     }
     
     return suggestions;
@@ -592,34 +686,36 @@ function generateDraftAboutMe(cvInfo, jdText, reqs) {
     const jdLower = jdText.toLowerCase();
     
     let focusAreas = [];
-    if (/marketing|campaign/.test(jdLower)) focusAreas.push("marketing");
-    if (/product/.test(jdLower)) focusAreas.push("product management");
-    if (/data|analytics/.test(jdLower)) focusAreas.push("data analysis");
-    if (/strategy|strategic/.test(jdLower)) focusAreas.push("strategic planning");
+    if (/marketing|campaign/i.test(jdText)) focusAreas.push("marketing");
+    if (/media\s+(?:planning|strategy|buying)/i.test(jdText)) focusAreas.push("media planning");
+    if (/product/i.test(jdText)) focusAreas.push("product management");
+    if (/data|analytics/i.test(jdText)) focusAreas.push("data analysis");
+    if (/strategy|strategic/i.test(jdText)) focusAreas.push("strategic planning");
     
-    if (focusAreas.length === 0) focusAreas = ["professional"];
+    if (focusAreas.length === 0) focusAreas = ["professional experience"];
     
     const yearsText = cvInfo.yearsExp && cvInfo.yearsExp !== 'Non rilevato' 
         ? `${cvInfo.yearsExp}+ years` 
         : 'several years';
     
-    let draft = `Professional with ${yearsText} of experience in ${focusAreas.join(' and ')}. `;
+    let draft = `Professional with ${yearsText} of experience in ${focusAreas.slice(0, 2).join(' and ')}. `;
     
     if (cvInfo.skills.length > 0) {
-        draft += `Skilled in ${cvInfo.skills.slice(0, 4).join(', ')}. `;
+        draft += `Skilled in ${cvInfo.skills.slice(0, 5).join(', ')}. `;
     }
     
     if (reqs.tools.length > 0) {
-        draft += `Experience with ${reqs.tools.slice(0, 3).join(', ')} for project management and analysis. `;
+        draft += `Experience with ${reqs.tools.slice(0, 4).join(', ')} for campaign management and performance analysis. `;
     }
     
     draft += `Strong analytical skills with a focus on data-driven decision making and results optimization.`;
     
     draft += `\n\n[NOTA: Questa è una bozza generica. Personalizzala con:
-- Il tuo ruolo/titolo specifico
-- Nomi di aziende/brand gestiti
-- Risultati quantificabili (%, numeri, metriche)
-- Specializzazioni uniche]`;
+- Il tuo ruolo/titolo specifico attuale
+- Nomi di aziende/brand con cui hai lavorato
+- Risultati quantificabili (percentuali, numeri, metriche concrete)
+- Specializzazioni uniche che ti differenziano
+- Certificazioni o competenze distintive]`;
     
     return draft;
 }
@@ -634,21 +730,22 @@ function identifyGaps(cvText, jdText, reqs) {
         nice: []
     };
     
-    // Check for critical skills
     reqs.tools.forEach(tool => {
-        if (!cvLower.includes(tool)) {
-            if (/jira|excel|powerpoint/.test(tool)) {
+        if (!new RegExp(`\\b${tool}\\b`, 'i').test(cvText)) {
+            if (/jira|excel|powerpoint|google analytics/i.test(tool)) {
                 gaps.critical.push(tool);
-            } else {
+            } else if (/meta|google ads|power bi/i.test(tool)) {
                 gaps.important.push(tool);
+            } else {
+                gaps.nice.push(tool);
             }
         }
     });
     
-    // Check for keywords
-    const criticalKeywords = ['team', 'budget', 'strategy', 'analysis'];
+    const criticalKeywords = ['budget', 'team', 'strategy', 'analysis', 'performance'];
     criticalKeywords.forEach(kw => {
-        if (jdLower.includes(kw) && !cvLower.includes(kw)) {
+        if (new RegExp(`\\b${kw}\\b`, 'i').test(jdText) && 
+            !new RegExp(`\\b${kw}\\b`, 'i').test(cvText)) {
             gaps.important.push(kw);
         }
     });
