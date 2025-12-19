@@ -1090,18 +1090,30 @@ function getCompetitivenessLevel(score) {
 // ============================================
 // COVER LETTER VARIANTS (A/B Testing)
 // ============================================
-function generateCoverLetterVariants(jdText, company, role, location, profile, industry) {
+// ============================================
+// COVER LETTER BILINGUE - 6 VARIANTS
+// ============================================
+
+function generateCoverLetterVariantsBilingual(jdText, company, role, location, profile, industry) {
     const reqs = extractRequirements(jdText);
     const template = getIndustryTemplate(industry);
     
     return {
-        standard: generateStandardCoverLetter(jdText, company, role, location, profile, reqs),
-        bold: generateBoldCoverLetter(jdText, company, role, location, profile, reqs, template),
-        storytelling: generateStorytellingCoverLetter(jdText, company, role, location, profile, reqs)
+        // ITALIANO
+        standard_it: generateStandardCoverLetterIT(jdText, company, role, location, profile, reqs),
+        bold_it: generateBoldCoverLetterIT(jdText, company, role, location, profile, reqs, template),
+        storytelling_it: generateStorytellingCoverLetterIT(jdText, company, role, location, profile, reqs),
+        
+        // ENGLISH
+        standard_en: generateStandardCoverLetterEN(jdText, company, role, location, profile, reqs),
+        bold_en: generateBoldCoverLetterEN(jdText, company, role, location, profile, reqs, template),
+        storytelling_en: generateStorytellingCoverLetterEN(jdText, company, role, location, profile, reqs)
     };
 }
 
-function generateStandardCoverLetter(jdText, company, role, location, profile, reqs) {
+// ===== ITALIANO =====
+
+function generateStandardCoverLetterIT(jdText, company, role, location, profile, reqs) {
     const isProduct = /product|prodotto|roadmap|launch/i.test(jdText);
     const isMedia = /media\s+(?:strategy|planning|buying)/i.test(jdText);
     
@@ -1139,8 +1151,128 @@ ${profile.email} | ${profile.phone}`;
     return letter;
 }
 
-function generateBoldCoverLetter(jdText, company, role, location, profile, reqs, template) {
-    let letter = `Oggetto: ${role} – Delivering Results from Day One
+function generateBoldCoverLetterIT(jdText, company, role, location, profile, reqs, template) {
+    let letter = `Oggetto: ${role} – Risultati dal primo giorno
+
+Buongiorno Team ${company},
+
+Mi candido per la posizione di ${role}. Ecco cosa porto:
+
+📊 I NUMERI:
+• ${profile.yearsExp}+ anni gestendo campagne digitali per ${profile.brandsManaged.slice(0, 2).join(' & ')}
+• +20% miglioramento medio ROI campagne attraverso ottimizzazione data-driven
+• €2M+ budget media annuale gestito su Meta, Google, TikTok e programmatic
+
+🎯 COSA FAREI PER VOI:`;
+    
+    if (/media/i.test(jdText)) {
+        letter += `
+• Costruire strategie media end-to-end allineate agli obiettivi business
+• Ottimizzare campagne usando GA4, Power BI e dashboard custom
+• Coordinare agenzie e partner per campagne integrate`;
+    } else if (/product/i.test(jdText)) {
+        letter += `
+• Guidare lanci prodotto con team cross-funzionali (IT, Legal, Marketing)
+• Usare analisi mercato e competitive intelligence per roadmap
+• Tracciare KPI post-lancio e iterare basandosi su feedback utenti`;
+    } else {
+        letter += `
+• Gestire campagne performance multi-canale con KPI chiari
+• Implementare strategie A/B testing per massimizzare conversioni
+• Presentare insight agli stakeholder con data visualization`;
+    }
+    
+    letter += `
+
+💡 IL MIO VANTAGGIO:
+Approccio marketing AI-powered (certificato da Fastweb Digital Academy) applicato a progetti reali inclusi sviluppo web e tool automazione.
+
+Mi piacerebbe discutere come la mia esperienza con ${profile.brandsManaged[0]} e ${profile.brandsManaged[1]} si traduce in risultati per ${company}.
+
+Disponibile per una call.
+
+Cordiali saluti,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateStorytellingCoverLetterIT(jdText, company, role, location, profile, reqs) {
+    let letter = `Oggetto: Candidatura per ${role} – ${company}
+
+Gentile Team ${company},
+
+Quando ho iniziato a lavorare sulle campagne digitali Honda ${profile.yearsExp} anni fa, ho capito subito che il grande marketing non riguarda solo piattaforme e metriche—riguarda comprendere le persone e creare connessioni significative su larga scala.
+
+Questa intuizione ha plasmato la mia carriera. Oggi, come ${profile.currentRole} presso ${profile.company}, combino il rigore analitico delle decisioni data-driven con il pensiero creativo necessario per emergere nel rumore.
+
+Per ${company}, vedo un'opportunità per portare lo stesso approccio nel ruolo di ${role}. `;
+    
+    if (/product/i.test(jdText)) {
+        letter += `Il vostro focus sull'innovazione di prodotto risuona con la mia esperienza nel lanciare offerte digitali in automotive e fashion—progetti dove precisione tecnica incontra storytelling creativo per generare impatto business reale.`;
+    } else if (/media/i.test(jdText)) {
+        letter += `Il vostro approccio integrato ai media si allinea perfettamente con come ho gestito campagne su Meta, Google, TikTok e programmatic—sempre cercando le sinergie che fanno 1+1=3.`;
+    } else {
+        letter += `Il vostro impegno verso l'eccellenza data-driven corrisponde al mio: credo che i migliori insight derivino dalla combinazione di analisi quantitativa e comprensione qualitativa del mercato.`;
+    }
+    
+    letter += `
+
+Cosa mi distingue? Oltre ai ${profile.yearsExp} anni di esperienza e al toolkit tecnico (${profile.coreSkills.slice(0, 4).join(', ')}), porto genuina curiosità verso le tecnologie emergenti. Le mie certificazioni AI non sono solo righe sul CV—sono strumenti che uso attivamente per risolvere problemi più efficientemente.
+
+Sarei felice di discutere come il mio background potrebbe contribuire agli obiettivi di ${company}.
+
+In attesa di connetterci,
+
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+// ===== ENGLISH =====
+
+function generateStandardCoverLetterEN(jdText, company, role, location, profile, reqs) {
+    const isProduct = /product|roadmap|launch/i.test(jdText);
+    const isMedia = /media\s+(?:strategy|planning|buying)/i.test(jdText);
+    
+    let letter = `Subject: Application for ${role} – ${location}
+
+Dear ${company} Hiring Team,
+
+I am writing to apply for the ${role} position. With over ${profile.yearsExp} years of experience in digital marketing and campaign management for international brands, I believe I can make a meaningful contribution to your team.`;
+    
+    if (isMedia) {
+        letter += `
+
+In my current role as ${profile.currentRole} at ${profile.company}, I manage end-to-end media strategies for brands including ${profile.brandsManaged.slice(0, 3).join(', ')}, coordinating with media agencies and digital partners. I have hands-on experience in media planning and buying across Meta, Google, TikTok, and programmatic platforms, with a focus on ROI optimization and performance analysis.`;
+    } else if (isProduct) {
+        letter += `
+
+In my current role as ${profile.currentRole} at ${profile.company}, I define annual digital strategies and lead product launches for automotive, fashion, and medical device clients. I have direct experience in market trend analysis and cross-functional collaboration (IT, Legal, Marketing) to bring digital products to market.`;
+    } else {
+        letter += `
+
+In my current role as ${profile.currentRole} at ${profile.company}, I manage advertising strategies for brands like ${profile.brandsManaged.slice(0, 3).join(', ')}, focusing on performance optimization and data-driven analysis through tools like Google Analytics 4, Power BI, and Looker Studio.`;
+    }
+    
+    letter += `
+
+What sets me apart is my integration of AI skills into marketing, certified through specialized courses (${profile.aiCertifications.slice(0, 2).join(', ')}). I'm motivated by the opportunity to contribute to ${company}'s objectives with an analytical, results-oriented approach.
+
+I would welcome the chance to discuss this opportunity further.
+
+Best regards,
+
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateBoldCoverLetterEN(jdText, company, role, location, profile, reqs, template) {
+    let letter = `Subject: ${role} – Delivering Results from Day One
 
 Hi ${company} Team,
 
@@ -1186,8 +1318,8 @@ ${profile.email} | ${profile.phone}`;
     return letter;
 }
 
-function generateStorytellingCoverLetter(jdText, company, role, location, profile, reqs) {
-    let letter = `Oggetto: Candidatura per ${role} – ${company}
+function generateStorytellingCoverLetterEN(jdText, company, role, location, profile, reqs) {
+    let letter = `Subject: Application for ${role} – ${company}
 
 Dear ${company} Team,
 
