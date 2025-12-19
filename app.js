@@ -1072,7 +1072,7 @@ function generateDocumentsMartino() {
         document.getElementById('loading-martino').classList.remove('show');
         document.getElementById('results-martino').classList.add('show');
         document.getElementById('results-martino').scrollIntoView({ behavior: 'smooth' });
-    }, 1000);
+    }, 5000);
 }
 
 function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId) {
