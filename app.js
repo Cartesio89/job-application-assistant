@@ -1,5 +1,6 @@
-// Job Application System V4 - PRODUCTION READY
-// Part 1: Core Data Structures, Storage, Keyword Extraction, Industry Detection
+// Job Application System V4.1 - PRODUCTION READY
+// Complete rewrite with all fixes integrated
+// Part 1: Core Data Structures, Storage, Advanced Keywords with Claude API
 
 // ============================================
 // MARTINO'S PROFILE
@@ -47,18 +48,16 @@ const StorageManager = {
             atsScore: results.atsScore ? results.atsScore.score : 0,
             coverLetterPreview: results.coverLetter ? results.coverLetter.substring(0, 150) + '...' : '',
             fullResults: results,
-            // Email tracking
             emailSent: false,
             sentDate: null,
             recipientEmail: null,
             attachments: [],
-            // Feedback tracking
             feedbackCompleted: false,
-            outcome: null, // "interview" | "rejection" | "ghosted"
+            outcome: null,
             responseTime: null,
             feedbackNotes: '',
             feedbackDeadline: null,
-            status: 'draft', // "draft" | "sent" | "pending" | "auto-ghosted" | "completed"
+            status: 'draft',
             reminderSent: false,
             recoverable: true
         };
@@ -112,7 +111,6 @@ const StorageManager = {
             feedbackDate: new Date().toISOString()
         });
         
-        // Update learning data
         this.updateLearningData(id, feedbackData);
     },
     
@@ -122,7 +120,6 @@ const StorageManager = {
         
         const learning = this.getLearningData();
         
-        // Track by industry
         const industry = entry.fullResults?.industry || 'generic';
         if (!learning.industryStats[industry]) {
             learning.industryStats[industry] = {
@@ -145,8 +142,7 @@ const StorageManager = {
         if (feedbackData.outcome === 'rejection') industryData.rejections++;
         if (feedbackData.outcome === 'ghosted') industryData.ghosted++;
         
-        // Track cover letter style effectiveness
-        const style = entry.fullResults?.selectedStyle || 'standard';
+        const style = entry.fullResults?.selectedStyle || 'standard_it';
         if (!learning.styleEffectiveness[style]) {
             learning.styleEffectiveness[style] = {
                 used: 0,
@@ -163,7 +159,6 @@ const StorageManager = {
             (learning.styleEffectiveness[style].interviews / learning.styleEffectiveness[style].used) * 100
         );
         
-        // Save
         localStorage.setItem('learning_data', JSON.stringify(learning));
     },
     
@@ -192,7 +187,7 @@ const StorageManager = {
             history: this.getHistory(),
             learningData: this.getLearningData(),
             exportedAt: new Date().toISOString(),
-            version: '4.0'
+            version: '4.1'
         };
         
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -205,7 +200,6 @@ const StorageManager = {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        // Show instructions
         showExportInstructions();
     },
     
@@ -225,14 +219,12 @@ const StorageManager = {
             );
             
             if (merge) {
-                // Merge: rimuovi duplicati per ID, mantieni più recenti
                 const merged = [...currentHistory];
                 data.history.forEach(entry => {
                     const existingIndex = merged.findIndex(e => e.id === entry.id);
                     if (existingIndex === -1) {
                         merged.push(entry);
                     } else {
-                        // Keep newer version
                         if (new Date(entry.date) > new Date(merged[existingIndex].date)) {
                             merged[existingIndex] = entry;
                         }
@@ -242,7 +234,6 @@ const StorageManager = {
                 localStorage.setItem('job_app_history', JSON.stringify(merged));
                 alert(`✅ Dati uniti! Totale candidature: ${merged.length}`);
             } else {
-                // Overwrite
                 localStorage.setItem('job_app_history', JSON.stringify(data.history));
                 localStorage.setItem('learning_data', JSON.stringify(data.learningData || {}));
                 alert(`✅ Dati importati! ${data.history.length} candidature caricate.`);
@@ -269,13 +260,11 @@ function checkFeedbackStatus() {
             const sentDate = new Date(app.sentDate);
             const daysPassed = Math.floor((today - sentDate) / (1000 * 60 * 60 * 24));
             
-            // Reminder at 15 days
             if (daysPassed === 15 && !app.reminderSent) {
                 showFeedbackReminder(app);
                 StorageManager.updateAnalysis(app.id, { reminderSent: true });
             }
             
-            // Auto-ghost after 15 days (but recoverable)
             if (daysPassed > 15 && !app.feedbackCompleted) {
                 StorageManager.updateAnalysis(app.id, {
                     status: 'auto-ghosted',
@@ -287,22 +276,15 @@ function checkFeedbackStatus() {
     });
 }
 
-// Run check on page load
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', checkFeedbackStatus);
 }
 
 // ============================================
-// ADVANCED KEYWORD EXTRACTION (TF-IDF + Bigrams)
-// ============================================
-// ============================================
 // ADVANCED KEYWORD EXTRACTION - CLAUDE API VALIDATED
 // ============================================
 
-// STOPWORDS COMPLETE - IT + EN + HR generiche
 const stopwords = new Set([
-    // ===== ITALIANO =====
-    // Articoli
     'di', 'a', 'da', 'in', 'con', 'su', 'per', 'tra', 'fra',
     'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'una', 'uno',
     'al', 'allo', 'alla', 'ai', 'agli', 'alle',
@@ -310,49 +292,31 @@ const stopwords = new Set([
     'nel', 'nello', 'nella', 'nei', 'negli', 'nelle',
     'sul', 'sullo', 'sulla', 'sui', 'sugli', 'sulle',
     'del', 'dello', 'della', 'dei', 'degli', 'delle',
-    'col', 'coi', 'con', 'sul', 'nell',
-    
-    // Preposizioni articolate comuni
-    'sull', 'dall', 'all', 'coll',
-    
-    // Congiunzioni
+    'col', 'coi', 'sull', 'dall', 'all', 'coll',
     'e', 'ed', 'o', 'od', 'ma', 'però', 'perché', 'quindi', 'dunque',
     'anche', 'inoltre', 'oppure', 'ovvero', 'cioè', 'sia',
-    
-    // Pronomi
     'che', 'chi', 'cui', 'quale', 'quali', 'quanto', 'quanta', 'quanti', 'quante',
     'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro',
-    'mi', 'ti', 'ci', 'vi', 'si', 'ne', 'lo', 'la', 'li', 'le',
+    'mi', 'ti', 'ci', 'vi', 'si', 'ne',
     'questo', 'questa', 'questi', 'queste',
     'quello', 'quella', 'quelli', 'quelle',
     'tale', 'tali', 'altro', 'altra', 'altri', 'altre',
-    
-    // Verbi essere/avere
     'è', 'sono', 'sei', 'siamo', 'siete', 'era', 'erano', 'ero', 'eravamo',
     'essere', 'stato', 'stata', 'stati', 'state', 'sia', 'siano',
     'avere', 'ha', 'hanno', 'hai', 'ho', 'abbiamo', 'avete',
     'aveva', 'avevano', 'avuto', 'avuta', 'avuti', 'avute',
-    
-    // Verbi modali
     'può', 'possono', 'puoi', 'possiamo', 'potere',
     'deve', 'devono', 'devi', 'dobbiamo', 'dovere',
     'vuole', 'vogliono', 'vuoi', 'vogliamo', 'volere',
-    
-    // Verbi comuni
     'fare', 'fa', 'fanno', 'fai', 'facciamo', 'fatto', 'fatta',
     'dire', 'dice', 'dicono', 'detto', 'detta',
     'andare', 'va', 'vanno', 'vai', 'andiamo',
     'dare', 'dà', 'danno', 'dai', 'diamo', 'dato', 'data',
     'stare', 'sta', 'stanno', 'stai', 'stiamo',
     'vedere', 'vede', 'vedono', 'vedi', 'vediamo', 'visto', 'vista',
-    
-    // Avverbi
     'non', 'più', 'molto', 'poco', 'tanto', 'troppo', 'sempre', 'mai',
-    'già', 'ancora', 'solo', 'anche', 'proprio', 'quasi', 'almeno',
-    'come', 'dove', 'quando', 'perché', 'così', 'bene', 'male',
-    
-    // ===== HR ITALIANO =====
-    // Lavoro/Offerta
+    'già', 'ancora', 'solo', 'proprio', 'quasi', 'almeno',
+    'come', 'dove', 'quando', 'così', 'bene', 'male',
     'lavoro', 'lavori', 'lavorare', 'lavoratore', 'lavoratori',
     'offerta', 'offerte', 'offrire', 'offriamo',
     'posizione', 'posizioni', 'posto', 'posti',
@@ -362,8 +326,6 @@ const stopwords = new Set([
     'assume', 'assumere', 'assunzione', 'assunzioni',
     'selezione', 'selezioni', 'seleziona', 'selezioniamo',
     'inserimento', 'inserire', 'inseriamo',
-    
-    // Candidati
     'candidato', 'candidata', 'candidati', 'candidature', 'candidatura',
     'collega', 'colleghi', 'colleghe',
     'collaboratore', 'collaboratori', 'collaboratrice', 'collaboratrici',
@@ -371,15 +333,11 @@ const stopwords = new Set([
     'persona', 'persone', 'individuo', 'individui',
     'talento', 'talenti', 'professional', 'professionista', 'professionisti',
     'impiego', 'occupazione', 'incarico',
-    
-    // Azienda
     'azienda', 'aziende', 'società', 'impresa', 'imprese', 'ditta',
     'team', 'gruppo', 'squadra', 'staff',
     'ufficio', 'sede', 'headquarter', 'headquarters',
     'reparto', 'dipartimento', 'divisione', 'area',
     'organizzazione', 'organico', 'struttura',
-    
-    // Aggettivi azienda
     'ambiente', 'contesto', 'realtà', 'panorama',
     'dinamico', 'dinamica', 'dinamici', 'dinamiche',
     'internazionale', 'internazionali', 'globale', 'globali',
@@ -388,15 +346,10 @@ const stopwords = new Set([
     'importante', 'rilevante', 'leader', 'primario', 'primaria',
     'strutturato', 'strutturata', 'solido', 'solida',
     'crescita', 'espansione', 'sviluppo',
-    
-    // Settore/Mercato
     'settore', 'settori', 'mercato', 'mercati', 'industria', 'industrie',
     'clienti', 'cliente', 'partner', 'fornitori', 'fornitore',
     'business', 'attività', 'operazioni', 'servizi', 'servizio',
-    
-    // Verbi HR
-    'vuoi', 'vuole', 'vogliamo', 'vogliono', 'volere',
-    'desidera', 'desiderano', 'desideri', 'desideriamo', 'desiderare',
+    'vuoi', 'desidera', 'desiderano', 'desideri', 'desideriamo', 'desiderare',
     'interessato', 'interessata', 'interessati', 'interessate',
     'unire', 'unirti', 'unirsi', 'entrare', 'entri',
     'lavorare', 'lavorando', 'occupare', 'occuparsi',
@@ -406,8 +359,6 @@ const stopwords = new Set([
     'contribuire', 'contribuisce', 'contribuiscono', 'contributo',
     'coordinare', 'coordina', 'coordinamento',
     'sviluppare', 'sviluppa', 'sviluppano',
-    
-    // Requisiti generici
     'competenza', 'competenze', 'skill', 'skills',
     'esclusivit', 'esclusivo', 'esclusiva', 'esclusivi', 'esclusive',
     'requisito', 'requisiti', 'requirement', 'requirements',
@@ -417,46 +368,26 @@ const stopwords = new Set([
     'capacità', 'abilità', 'attitudine', 'attitudini',
     'qualifica', 'qualifiche', 'titolo', 'titoli',
     'diploma', 'laurea', 'master', 'certificazione', 'certificazioni',
-    
-    // Descrittivi generici
     'ottimo', 'ottima', 'ottimi', 'ottime', 'eccellente', 'eccellenti',
     'buono', 'buona', 'buoni', 'buone', 'valido', 'valida',
     'preferibile', 'preferibili', 'gradita', 'gradito', 'gradite',
     'apprezzata', 'apprezzato', 'apprezzate', 'completano', 'completa',
     'ideale', 'perfetto', 'perfetta', 'adatto', 'adatta',
-    
-    // Benefit/Offerta
     'offriamo', 'garantiamo', 'assicuriamo', 'prevediamo',
     'contratto', 'contrattuale', 'retribuzione', 'stipendio',
     'benefit', 'welfare', 'ticket', 'buoni', 'premio',
     'formazione', 'training', 'corso', 'corsi',
-    
-    // ===== ENGLISH =====
-    // Articles
-    'the', 'a', 'an',
-    
-    // Prepositions
-    'of', 'to', 'in', 'for', 'on', 'at', 'with', 'by', 'from', 'about',
+    'the', 'a', 'an', 'of', 'to', 'in', 'for', 'on', 'at', 'with', 'by', 'from', 'about',
     'into', 'through', 'during', 'before', 'after', 'above', 'below',
     'between', 'under', 'over',
-    
-    // Conjunctions
     'and', 'or', 'but', 'so', 'yet', 'nor', 'as', 'if', 'than', 'that',
     'because', 'since', 'unless', 'while', 'where', 'when',
-    
-    // Pronouns
     'you', 'your', 'we', 'our', 'they', 'their', 'it', 'its',
-    'he', 'she', 'him', 'her', 'us', 'them', 'this', 'that',
+    'he', 'she', 'him', 'her', 'us', 'them', 'this',
     'these', 'those', 'who', 'what', 'which', 'whom', 'whose',
-    
-    // Verbs be/have
     'are', 'is', 'was', 'were', 'been', 'being', 'be',
     'have', 'has', 'had', 'having',
-    
-    // Modals
     'can', 'could', 'may', 'might', 'must', 'should', 'would', 'will',
-    
-    // Common verbs
     'do', 'does', 'did', 'doing', 'done',
     'make', 'makes', 'made', 'making',
     'get', 'gets', 'got', 'getting',
@@ -468,44 +399,29 @@ const stopwords = new Set([
     'think', 'thinks', 'thought', 'thinking',
     'want', 'wants', 'wanted', 'wanting',
     'use', 'uses', 'used', 'using',
-    
-    // Adverbs
     'not', 'no', 'yes', 'very', 'too', 'also', 'just', 'only',
     'even', 'well', 'back', 'more', 'most', 'all', 'some', 'any',
     'both', 'each', 'every', 'such', 'other', 'another',
     'how', 'now', 'then', 'here', 'there',
-    
-    // ===== HR ENGLISH =====
-    // Job/Position
     'job', 'jobs', 'position', 'positions', 'role', 'roles',
     'work', 'working', 'worker', 'workers',
     'offer', 'offering', 'opportunity', 'opportunities',
     'looking', 'seeking', 'search', 'searching',
     'hire', 'hiring', 'recruit', 'recruiting', 'recruitment',
     'employment', 'vacancy', 'vacancies', 'opening', 'openings',
-    
-    // Candidates
     'candidate', 'candidates', 'applicant', 'applicants',
-    'colleague', 'colleagues', 'team', 'member', 'members',
+    'colleague', 'colleagues', 'member', 'members',
     'professional', 'professionals', 'talent', 'talents',
     'individual', 'individuals', 'person', 'people',
-    
-    // Company
     'company', 'companies', 'firm', 'organization', 'business',
     'group', 'office', 'department', 'division',
     'environment', 'culture', 'workplace',
-    
-    // Adjectives
     'dynamic', 'international', 'global', 'innovative',
     'leading', 'major', 'growing', 'established',
     'successful', 'reputable', 'prestigious',
-    
-    // Verbs HR
-    'support', 'contribute', 'tasks', 'join', 'offer',
+    'support', 'contribute', 'tasks', 'join',
     'manage', 'lead', 'develop', 'coordinate',
     'ensure', 'provide', 'deliver', 'achieve',
-    
-    // Requirements
     'years', 'experience', 'preferred', 'required', 'must',
     'skills', 'knowledge', 'ability', 'abilities',
     'qualification', 'qualifications', 'degree', 'education',
@@ -543,7 +459,6 @@ function calculateTFIDF(term, text, allTexts = [text]) {
 
 function getDomainBoost(term) {
     const boostMap = {
-        // Marketing/Digital
         'digital marketing': 2.5,
         'media planning': 2.5,
         'performance marketing': 2.5,
@@ -554,22 +469,16 @@ function getDomainBoost(term) {
         'sem': 2.0,
         'campaign optimization': 2.0,
         'budget management': 2.0,
-        
-        // Product/Tech
         'product management': 2.5,
         'agile': 2.0,
         'scrum': 2.0,
         'roadmap': 2.0,
         'user story': 2.0,
-        
-        // Analytics/Data
         'data analysis': 2.5,
         'data analytics': 2.5,
         'business intelligence': 2.0,
         'kpi': 2.0,
         'dashboard': 2.0,
-        
-        // Tools specifici
         'google analytics': 2.0,
         'power bi': 2.0,
         'tableau': 2.0,
@@ -590,8 +499,6 @@ function getDomainBoost(term) {
         'canva': 1.6,
         'jira': 1.6,
         'asana': 1.6,
-        
-        // Skills generiche (boost minore)
         'marketing': 1.5,
         'strategy': 1.5,
         'analysis': 1.5,
@@ -602,55 +509,37 @@ function getDomainBoost(term) {
     return boostMap[term.toLowerCase()] || 1.0;
 }
 
-// FILTRO POST-EXTRACTION intelligente
 function filterIrrelevantKeywords(keywords) {
     const irrelevantPatterns = [
-        // Preposizioni articolate residue
         /^(sull|dell|nell|all|coll)\s/i,
-        
-        // HR generiche
         /\b(offerta|lavoro|job|posizione|ricerca)\b/i,
         /\b(azienda|società|team|gruppo|ufficio)\b/i,
         /\b(cerchi|cerca|cerchiamo|ricerca|stiamo)\b/i,
         /\b(vuoi|vuole|desidera|interessato)\b/i,
         /\b(candidato|candidata|figura|risorsa)\b/i,
-        
-        // Descrittivi generici
         /\b(ambiente|dinamico|internazionale|giovane)\b/i,
         /\b(importante|leader|settore|mercato)\b/i,
         /\b(ottimo|buono|eccellente|preferibile)\b/i,
-        
-        // Verbi generici
         /\b(lavorare|occupare|svolgere|gestire|seguire)\b/i,
         /\b(unire|entrare|contribuire|supportare)\b/i,
-        
-        // Requisiti generici
         /\b(competenza|esperienza|conoscenza|capacità)\b/i,
         /\b(requisito|necessario|richiesto)\b/i,
-        
-        // English HR
         /\b(looking|support|work|offer|role)\b/i,
         /\b(opportunity|join|contribute|tasks)\b/i,
         /\b(candidate|position|hiring|seeking)\b/i,
         /\b(years|experience|preferred|required)\b/i,
-        
-        // Pattern contratti/benefit
         /\b(contratto|retribuzione|benefit|welfare)\b/i,
         /\b(formazione|training|corso)\b/i,
-        
-        // Pattern location
         /\b(sede|ufficio|zona|area|città)\b/i
     ];
     
     return keywords.filter(kw => {
         const word = kw.word.toLowerCase();
         
-        // Escludi se match irrelevant patterns
         if (irrelevantPatterns.some(pattern => pattern.test(word))) {
             return false;
         }
         
-        // Escludi se troppo corta E non acronimo
         if (word.length < 3) {
             return false;
         }
@@ -659,16 +548,10 @@ function filterIrrelevantKeywords(keywords) {
             return false;
         }
         
-        // Escludi se solo numeri
         if (/^\d+$/.test(word)) {
             return false;
         }
         
-        // Mantieni se:
-        // - Bigram (contiene spazio)
-        // - Score alto
-        // - Count >= 2
-        // - Tool/tecnico (boost > 1.5)
         if (word.includes(' ')) return true;
         if (kw.score > 1.0) return true;
         if (kw.count >= 3) return true;
@@ -678,7 +561,6 @@ function filterIrrelevantKeywords(keywords) {
     });
 }
 
-// CLAUDE API VALIDATION - Real-time intelligent filtering
 async function validateKeywordsWithClaude(keywords, jdText) {
     try {
         const keywordList = keywords.map(k => k.word).join(', ');
@@ -727,7 +609,6 @@ Rispondi SOLO con lista keyword valide separate da virgola, NIENTE altro testo.`
         const validKeywordsText = data.content[0].text.trim();
         const validKeywords = validKeywordsText.split(',').map(k => k.trim().toLowerCase());
         
-        // Filter original keywords keeping only validated ones
         const filtered = keywords.filter(kw => 
             validKeywords.some(vk => 
                 kw.word.toLowerCase() === vk || 
@@ -758,18 +639,19 @@ async function extractKeywordsAdvanced(jdText, topN = 15) {
         count: (jdText.toLowerCase().match(new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'g')) || []).length
     }));
     
-    // Prima filtrata locale
     const localFiltered = filterIrrelevantKeywords(scored);
     
     const sorted = localFiltered
         .sort((a, b) => b.score - a.score)
         .slice(0, Math.min(topN * 2, 30));
     
-    // Claude API validation (async)
     const claudeValidated = await validateKeywordsWithClaude(sorted, jdText);
     
     return claudeValidated.slice(0, topN);
 }
+// Job Application System V4.1 - Part 2
+// Industry Detection, Requirements Extraction, Competitive Analysis
+
 // ============================================
 // INDUSTRY DETECTION
 // ============================================
@@ -954,6 +836,93 @@ function calculateATSScore(documentText, jdKeywords) {
 }
 
 // ============================================
+// COMPETITIVE ANALYSIS - FIXED
+// ============================================
+function generateCompetitiveAnalysis(cvProfile, jdRequirements) {
+    const analysis = {
+        experienceGap: 0,
+        toolsCoverage: 0,
+        industryFit: 0,
+        overallCompetitiveness: 0,
+        strengths: [],
+        weaknesses: [],
+        positioning: []
+    };
+    
+    if (jdRequirements.experienceYears) {
+        const ratio = cvProfile.yearsExp / jdRequirements.experienceYears;
+        if (ratio >= 1.5) {
+            analysis.experienceGap = 100;
+            analysis.strengths.push(`Esperienza superiore (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
+            analysis.positioning.push('Lead with seniority and proven track record');
+        } else if (ratio >= 1) {
+            analysis.experienceGap = 80;
+            analysis.strengths.push(`Esperienza allineata (${cvProfile.yearsExp} anni)`);
+        } else if (ratio >= 0.75) {
+            analysis.experienceGap = 60;
+            analysis.weaknesses.push(`Esperienza leggermente sotto (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
+            analysis.positioning.push('Compensate with specific achievements and skills');
+        } else {
+            analysis.experienceGap = 40;
+            analysis.weaknesses.push(`Gap esperienza significativo`);
+            analysis.positioning.push('Highlight rapid learning and relevant projects');
+        }
+    } else {
+        analysis.experienceGap = 70;
+    }
+    
+    if (jdRequirements.tools && jdRequirements.tools.length > 0) {
+        const matchedTools = jdRequirements.tools.filter(tool =>
+            cvProfile.coreSkills.some(skill =>
+                skill.toLowerCase().includes(tool.name.toLowerCase()) ||
+                tool.name.toLowerCase().includes(skill.toLowerCase())
+            )
+        );
+        
+        analysis.toolsCoverage = Math.round((matchedTools.length / jdRequirements.tools.length) * 100);
+        
+        if (analysis.toolsCoverage >= 80) {
+            analysis.strengths.push(`Ottima copertura tool (${analysis.toolsCoverage}%)`);
+        } else if (analysis.toolsCoverage >= 60) {
+            analysis.strengths.push(`Buona copertura tool (${analysis.toolsCoverage}%)`);
+            const missingTools = jdRequirements.tools.filter(tool =>
+                !matchedTools.some(m => m.name === tool.name)
+            ).slice(0, 3);
+            if (missingTools.length > 0) {
+                analysis.weaknesses.push(`Tool da aggiungere: ${missingTools.map(t => t.name).join(', ')}`);
+                analysis.positioning.push(`Mention transferable skills for ${missingTools[0].name}`);
+            }
+        } else {
+            analysis.weaknesses.push(`Gap tool significativo (${analysis.toolsCoverage}%)`);
+            analysis.positioning.push('Focus on core competencies and learning agility');
+        }
+    } else {
+        analysis.toolsCoverage = 70;
+    }
+    
+    analysis.industryFit = 75;
+    if (cvProfile.industries && cvProfile.industries.length > 0) {
+        analysis.strengths.push(`Esperienza industry: ${cvProfile.industries.join(', ')}`);
+        analysis.positioning.push('Leverage industry-specific knowledge');
+    }
+    
+    analysis.overallCompetitiveness = Math.round(
+        (analysis.experienceGap * 0.3) +
+        (analysis.toolsCoverage * 0.4) +
+        (analysis.industryFit * 0.3)
+    );
+    
+    return analysis;
+}
+
+function getCompetitivenessLevel(score) {
+    if (score >= 85) return { level: 'VERY STRONG', color: '#28a745', icon: '🌟' };
+    if (score >= 70) return { level: 'COMPETITIVE', color: '#667eea', icon: '✅' };
+    if (score >= 55) return { level: 'MODERATE', color: '#ffa500', icon: '⚠️' };
+    return { level: 'WEAK', color: '#d32f2f', icon: '❌' };
+}
+
+// ============================================
 // PDF PARSING (Enhanced)
 // ============================================
 async function extractTextFromPDF(arrayBuffer) {
@@ -994,102 +963,145 @@ async function extractTextFromPDF(arrayBuffer) {
     
     return text.trim();
 }
-// Job Application System V4 - Part 2
-// Competitive Analysis, Cover Letter Variants, Email System
 
 // ============================================
-// COMPETITIVE ANALYSIS
+// DETAILED CV SUGGESTIONS (Industry-Adapted)
 // ============================================
-function generateCompetitiveAnalysis(cvProfile, jdRequirements) {
-    const analysis = {
-        experienceGap: 0,
-        toolsCoverage: 0,
-        industryFit: 0,
-        overallCompetitiveness: 0,
-        strengths: [],
-        weaknesses: [],
-        positioning: []
+function generateDetailedCVSuggestions(jdText, reqs, profileSkills, industry) {
+    const template = getIndustryTemplate(industry);
+    const suggestions = {
+        workExperienceBullets: [],
+        skillsToHighlight: [],
+        skillsToAdd: [],
+        atsKeywordChecklist: [],
+        predictedScore: ''
     };
     
-    // Experience Gap Analysis
-    if (jdRequirements.experienceYears) {
-        const ratio = cvProfile.yearsExp / jdRequirements.experienceYears;
-        if (ratio >= 1.5) {
-            analysis.experienceGap = 100;
-            analysis.strengths.push(`Esperienza superiore (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
-            analysis.positioning.push('Lead with seniority and proven track record');
-        } else if (ratio >= 1) {
-            analysis.experienceGap = 80;
-            analysis.strengths.push(`Esperienza allineata (${cvProfile.yearsExp} anni)`);
-        } else if (ratio >= 0.75) {
-            analysis.experienceGap = 60;
-            analysis.weaknesses.push(`Esperienza leggermente sotto (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
-            analysis.positioning.push('Compensate with specific achievements and skills');
-        } else {
-            analysis.experienceGap = 40;
-            analysis.weaknesses.push(`Gap esperienza significativo`);
-            analysis.positioning.push('Highlight rapid learning and relevant projects');
-        }
-    } else {
-        analysis.experienceGap = 70;
-    }
+    const verb = template.verbs[0];
     
-    // Tools Coverage
-    if (jdRequirements.tools && jdRequirements.tools.length > 0) {
-        const matchedTools = jdRequirements.tools.filter(tool =>
-            cvProfile.coreSkills.some(skill =>
-                skill.toLowerCase().includes(tool.name.toLowerCase()) ||
-                tool.name.toLowerCase().includes(skill.toLowerCase())
-            )
+    if (/product/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            `${verb.charAt(0).toUpperCase() + verb.slice(1)} product launch strategies for new digital offerings across automotive and fashion clients`,
+            `Conducted competitive analysis and market research to inform product roadmap decisions`,
+            `Monitored post-launch KPIs using Power BI dashboards, implementing optimizations that resulted in 25% average improvement`
         );
-        
-        analysis.toolsCoverage = Math.round((matchedTools.length / jdRequirements.tools.length) * 100);
-        
-        if (analysis.toolsCoverage >= 80) {
-            analysis.strengths.push(`Ottima copertura tool (${analysis.toolsCoverage}%)`);
-        } else if (analysis.toolsCoverage >= 60) {
-            analysis.strengths.push(`Buona copertura tool (${analysis.toolsCoverage}%)`);
-            const missingTools = jdRequirements.tools.filter(tool =>
-                !matchedTools.some(m => m.name === tool.name)
-            ).slice(0, 3);
-            if (missingTools.length > 0) {
-                analysis.weaknesses.push(`Tool da aggiungere: ${missingTools.map(t => t.name).join(', ')}`);
-                analysis.positioning.push(`Mention transferable skills for ${missingTools[0].name}`);
-            }
-        } else {
-            analysis.weaknesses.push(`Gap tool significativo (${analysis.toolsCoverage}%)`);
-            analysis.positioning.push('Focus on core competencies and learning agility');
-        }
+    } else if (/media/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} end-to-end media strategies across Meta, Google, TikTok for international brands`,
+            `${template.verbs[1].charAt(0).toUpperCase() + template.verbs[1].slice(1)} multi-million euro budgets, negotiating with agencies to optimize CPM and CPA`,
+            `${template.verbs[2].charAt(0).toUpperCase() + template.verbs[2].slice(1)} integrated measurement framework using GA4 and Power BI`
+        );
     } else {
-        analysis.toolsCoverage = 70;
+        suggestions.workExperienceBullets.push(
+            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} performance marketing campaigns, optimizing towards KPIs including ROAS`,
+            `${template.verbs[3].charAt(0).toUpperCase() + template.verbs[3].slice(1)} in-depth analysis using GA4 and Power BI to identify optimization opportunities`,
+            `${template.verbs[4].charAt(0).toUpperCase() + template.verbs[4].slice(1)} A/B testing strategies resulting in measurable improvements`
+        );
     }
     
-    // Industry Fit
-    analysis.industryFit = 75;
-    if (cvProfile.industries && cvProfile.industries.length > 0) {
-        analysis.strengths.push(`Esperienza industry: ${cvProfile.industries.join(', ')}`);
-        analysis.positioning.push('Leverage industry-specific knowledge');
-    }
-    
-    // Overall Competitiveness
-    analysis.overallCompetitiveness = Math.round(
-        (analysis.experienceGap * 0.3) +
-        (analysis.toolsCoverage * 0.4) +
-        (analysis.industryFit * 0.3)
+    const toolsInProfile = profileSkills.filter(skill => 
+        reqs.tools.some(tool => 
+            skill.toLowerCase().includes(tool.name.toLowerCase())
+        )
     );
     
-    return analysis;
+    if (toolsInProfile.length > 0) {
+        suggestions.skillsToHighlight = toolsInProfile.slice(0, 6);
+    }
+    
+    const missingTools = reqs.tools.filter(tool =>
+        !profileSkills.some(skill =>
+            skill.toLowerCase().includes(tool.name.toLowerCase())
+        )
+    );
+    
+    if (missingTools.length > 0) {
+        suggestions.skillsToAdd = missingTools.slice(0, 5).map(tool => tool.name);
+    }
+    
+    const keywordCategories = {
+        'Role/Function': [],
+        'Skills/Competencies': [],
+        'Tools/Platforms': [],
+        'Soft Skills': []
+    };
+    
+    if (/digital marketing/i.test(jdText)) keywordCategories['Role/Function'].push('Digital marketing');
+    if (/product.*management/i.test(jdText)) keywordCategories['Role/Function'].push('Product management');
+    if (/media.*planning/i.test(jdText)) keywordCategories['Role/Function'].push('Media planning');
+    
+    if (reqs.hardSkills.length > 0) {
+        keywordCategories['Skills/Competencies'] = reqs.hardSkills.slice(0, 5);
+    }
+    
+    if (reqs.tools.length > 0) {
+        keywordCategories['Tools/Platforms'] = reqs.tools.slice(0, 6).map(t => t.name);
+    }
+    
+    if (reqs.softSkills.length > 0) {
+        keywordCategories['Soft Skills'] = reqs.softSkills.slice(0, 4);
+    }
+    
+    suggestions.atsKeywordChecklist = keywordCategories;
+    
+    const toolsMatch = reqs.tools.length > 0 
+        ? (toolsInProfile.length / reqs.tools.length) * 100 
+        : 100;
+    
+    if (toolsMatch >= 80) {
+        suggestions.predictedScore = "75-85% (molto buono)";
+    } else if (toolsMatch >= 60) {
+        suggestions.predictedScore = "65-75% (buono)";
+    } else {
+        suggestions.predictedScore = "55-65% (medio)";
+    }
+    
+    return suggestions;
 }
 
-function getCompetitivenessLevel(score) {
-    if (score >= 85) return { level: 'VERY STRONG', color: '#28a745', icon: '🌟' };
-    if (score >= 70) return { level: 'COMPETITIVE', color: '#667eea', icon: '✅' };
-    if (score >= 55) return { level: 'MODERATE', color: '#ffa500', icon: '⚠️' };
-    return { level: 'WEAK', color: '#d32f2f', icon: '❌' };
+function generateCVAboutSectionMartino(jdText) {
+    const reqs = extractRequirements(jdText);
+    
+    const focusAreas = [];
+    if (/media\s+(?:strategy|planning)/i.test(jdText)) focusAreas.push("media strategy and planning");
+    if (/performance|roi|kpi/i.test(jdText)) focusAreas.push("performance analysis");
+    if (/product/i.test(jdText)) focusAreas.push("product management");
+    if (/data|analytics/i.test(jdText)) focusAreas.push("data analysis");
+    
+    if (focusAreas.length === 0) focusAreas.push("digital strategy", "campaign optimization");
+    
+    let about = `Digital Media Planner with over ${martinoProfile.yearsExp} years of experience in ${focusAreas.slice(0, 2).join(' and ')} for international brands. `;
+    
+    if (reqs.tools.length > 0) {
+        const toolsToMention = reqs.tools.slice(0, 4).map(t => t.name).join(', ');
+        about += `Proficient in ${toolsToMention}, `;
+    }
+    
+    about += `specialized in optimizing omnichannel strategies and leveraging data-driven insights to improve marketing performance.`;
+    
+    return about.trim();
 }
-// ============================================
-// COVER LETTER VARIANTS (A/B Testing)
-// ============================================
+
+// Extract email from JD
+function extractEmailFromJD(jdText) {
+    const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
+    const emails = jdText.match(emailPattern);
+    
+    if (emails && emails.length > 0) {
+        const corporateEmails = emails.filter(email => 
+            !email.includes('gmail') && 
+            !email.includes('yahoo') && 
+            !email.includes('hotmail') &&
+            !email.includes('outlook')
+        );
+        
+        return corporateEmails[0] || null;
+    }
+    return null;
+}
+// Job Application System V4.1 - Part 3
+// Cover Letter Generation - BILINGUAL (6 variants: IT + EN)
+
 // ============================================
 // COVER LETTER BILINGUE - 6 VARIANTS
 // ============================================
@@ -1099,12 +1111,9 @@ function generateCoverLetterVariantsBilingual(jdText, company, role, location, p
     const template = getIndustryTemplate(industry);
     
     return {
-        // ITALIANO
         standard_it: generateStandardCoverLetterIT(jdText, company, role, location, profile, reqs),
         bold_it: generateBoldCoverLetterIT(jdText, company, role, location, profile, reqs, template),
         storytelling_it: generateStorytellingCoverLetterIT(jdText, company, role, location, profile, reqs),
-        
-        // ENGLISH
         standard_en: generateStandardCoverLetterEN(jdText, company, role, location, profile, reqs),
         bold_en: generateBoldCoverLetterEN(jdText, company, role, location, profile, reqs, template),
         storytelling_en: generateStorytellingCoverLetterEN(jdText, company, role, location, profile, reqs)
@@ -1350,184 +1359,157 @@ ${profile.email} | ${profile.phone}`;
     
     return letter;
 }
+// Job Application System V4.1 - Part 4
+// Email System (Mailto Fixed), Document Generation, Display Functions
 
 // ============================================
-// EMAIL SYSTEM - Send Application
+// EMAIL PREVIEW & SEND - MAILTO VERSION (FIXED)
 // ============================================
-async function sendApplicationEmail(emailData) {
-    // Mailto link - opens Gmail with pre-filled content
-    const subject = encodeURIComponent(`Candidatura ${emailData.role} - Martino Cicerani`);
-    const body = encodeURIComponent(emailData.coverLetter);
-    const mailto = `mailto:${emailData.recipientEmail}?subject=${subject}&body=${body}`;
+
+async function previewEmail(analysisId, company, role) {
+    const recipientEmail = document.getElementById('recipientEmail').value.trim();
+    const coverLetter = document.getElementById('editableCoverLetter').value.trim();
     
-    // Open Gmail
-    window.open(mailto, '_blank');
+    if (!recipientEmail || !coverLetter) {
+        alert('⚠️ Campi obbligatori: Email destinatario e Cover Letter');
+        return;
+    }
     
-    // Mark as sent in storage
-    StorageManager.markAsSent(emailData.analysisId, {
-        recipientEmail: emailData.recipientEmail,
-        attachments: ['CV e Portfolio da allegare manualmente'],
-        sentAt: new Date().toISOString()
-    });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipientEmail)) {
+        alert('⚠️ Formato email non valido');
+        return;
+    }
     
-    return { success: true };
-}
-// Helper: File to Base64
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+    const modal = document.createElement('div');
+    modal.id = 'emailPreviewModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
+            <button onclick="document.getElementById('emailPreviewModal').remove()" 
+                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0;">📧 Preview Email</h2>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+                <p style="margin: 0; font-size: 13px;">
+                    <strong>💡 Come funziona:</strong><br>
+                    1. Si aprirà Gmail con email pre-compilata<br>
+                    2. Aggiungi manualmente CV e Portfolio<br>
+                    3. Verifica e invia<br>
+                    4. Installa <a href="https://mailtrack.io" target="_blank" style="color: #667eea;">Mailtrack</a> per tracking aperture
+                </p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 5px 0;"><strong>Da:</strong> martino.cicerani@gmail.com (Gmail nativo)</p>
+                <p style="margin: 5px 0;"><strong>A:</strong> ${recipientEmail}</p>
+                <p style="margin: 5px 0;"><strong>Oggetto:</strong> Candidatura ${role} - Martino Cicerani</p>
+                <p style="margin: 5px 0;"><strong>Allegati:</strong> Da aggiungere manualmente in Gmail</p>
+            </div>
+            
+            <div style="border: 2px solid #ddd; padding: 20px; border-radius: 8px; background: white; max-height: 400px; overflow-y: auto;">
+                <pre style="white-space: pre-wrap; font-family: Arial; font-size: 13px; margin: 0; line-height: 1.6;">${coverLetter}</pre>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button id="confirmSendEmailBtn" 
+                        class="primary" 
+                        style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
+                    📧 Apri in Gmail
+                </button>
+                <button onclick="document.getElementById('emailPreviewModal').remove()" 
+                        class="secondary" 
+                        style="flex: 1; padding: 12px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 15px;">
+                    ✏️ Modifica
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('confirmSendEmailBtn').addEventListener('click', () => {
+        approveAndSendEmail(analysisId, recipientEmail, coverLetter, role);
     });
 }
 
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-// Extract email from JD
-function extractEmailFromJD(jdText) {
-    const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
-    const emails = jdText.match(emailPattern);
+async function approveAndSendEmail(analysisId, recipientEmail, coverLetter, role) {
+    const modal = document.getElementById('emailPreviewModal');
+    if (modal) modal.remove();
     
-    if (emails && emails.length > 0) {
-        const corporateEmails = emails.filter(email => 
-            !email.includes('gmail') && 
-            !email.includes('yahoo') && 
-            !email.includes('hotmail') &&
-            !email.includes('outlook')
-        );
+    try {
+        const result = await sendApplicationEmail({
+            analysisId,
+            recipientEmail,
+            coverLetter,
+            role: role
+        });
         
-        return corporateEmails[0] || null;
+        if (result.success) {
+            showSuccessModal(`✅ Gmail aperto con email pre-compilata!
+
+Prossimi step:
+1. Allega CV manualmente
+2. Allega Portfolio (se necessario)
+3. Verifica email e invia
+
+💡 Se hai Mailtrack installato, riceverai notifica quando l'email viene aperta.
+
+📊 Ricordati di aggiornare il risultato entro 15 giorni.`);
+        } else {
+            throw new Error(result.error);
+        }
+        
+    } catch (error) {
+        alert('❌ Errore apertura Gmail: ' + error.message);
+        console.error(error);
     }
-    return null;
 }
 
-// ============================================
-// DETAILED CV SUGGESTIONS (Industry-Adapted)
-// ============================================
-function generateDetailedCVSuggestions(jdText, reqs, profileSkills, industry) {
-    const template = getIndustryTemplate(industry);
-    const suggestions = {
-        workExperienceBullets: [],
-        skillsToHighlight: [],
-        skillsToAdd: [],
-        atsKeywordChecklist: [],
-        predictedScore: ''
-    };
-    
-    const verb = template.verbs[0];
-    
-    if (/product/i.test(jdText)) {
-        suggestions.workExperienceBullets.push(
-            `${verb.charAt(0).toUpperCase() + verb.slice(1)} product launch strategies for new digital offerings across automotive and fashion clients`,
-            `Conducted competitive analysis and market research to inform product roadmap decisions`,
-            `Monitored post-launch KPIs using Power BI dashboards, implementing optimizations that resulted in 25% average improvement`
-        );
-    } else if (/media/i.test(jdText)) {
-        suggestions.workExperienceBullets.push(
-            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} end-to-end media strategies across Meta, Google, TikTok for international brands`,
-            `${template.verbs[1].charAt(0).toUpperCase() + template.verbs[1].slice(1)} multi-million euro budgets, negotiating with agencies to optimize CPM and CPA`,
-            `${template.verbs[2].charAt(0).toUpperCase() + template.verbs[2].slice(1)} integrated measurement framework using GA4 and Power BI`
-        );
-    } else {
-        suggestions.workExperienceBullets.push(
-            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} performance marketing campaigns, optimizing towards KPIs including ROAS`,
-            `${template.verbs[3].charAt(0).toUpperCase() + template.verbs[3].slice(1)} in-depth analysis using GA4 and Power BI to identify optimization opportunities`,
-            `${template.verbs[4].charAt(0).toUpperCase() + template.verbs[4].slice(1)} A/B testing strategies resulting in measurable improvements`
-        );
+async function sendApplicationEmail(emailData) {
+    try {
+        const subject = encodeURIComponent(`Candidatura ${emailData.role} - Martino Cicerani`);
+        const body = encodeURIComponent(emailData.coverLetter);
+        const mailto = `mailto:${emailData.recipientEmail}?subject=${subject}&body=${body}`;
+        
+        const gmailWindow = window.open(mailto, '_blank');
+        
+        if (!gmailWindow || gmailWindow.closed || typeof gmailWindow.closed === 'undefined') {
+            throw new Error('Popup bloccato. Abilita i popup per questo sito.');
+        }
+        
+        StorageManager.markAsSent(emailData.analysisId, {
+            recipientEmail: emailData.recipientEmail,
+            attachments: ['CV e Portfolio da allegare manualmente'],
+            sentAt: new Date().toISOString()
+        });
+        
+        return { success: true };
+        
+    } catch (error) {
+        console.error('Send email error:', error);
+        return { success: false, error: error.message };
     }
-    
-    const toolsInProfile = profileSkills.filter(skill => 
-        reqs.tools.some(tool => 
-            skill.toLowerCase().includes(tool.name.toLowerCase())
-        )
-    );
-    
-    if (toolsInProfile.length > 0) {
-        suggestions.skillsToHighlight = toolsInProfile.slice(0, 6);
-    }
-    
-    const missingTools = reqs.tools.filter(tool =>
-        !profileSkills.some(skill =>
-            skill.toLowerCase().includes(tool.name.toLowerCase())
-        )
-    );
-    
-    if (missingTools.length > 0) {
-        suggestions.skillsToAdd = missingTools.slice(0, 5).map(tool => tool.name);
-    }
-    
-    const keywordCategories = {
-        'Role/Function': [],
-        'Skills/Competencies': [],
-        'Tools/Platforms': [],
-        'Soft Skills': []
-    };
-    
-    if (/digital marketing/i.test(jdText)) keywordCategories['Role/Function'].push('Digital marketing');
-    if (/product.*management/i.test(jdText)) keywordCategories['Role/Function'].push('Product management');
-    if (/media.*planning/i.test(jdText)) keywordCategories['Role/Function'].push('Media planning');
-    
-    if (reqs.hardSkills.length > 0) {
-        keywordCategories['Skills/Competencies'] = reqs.hardSkills.slice(0, 5);
-    }
-    
-    if (reqs.tools.length > 0) {
-        keywordCategories['Tools/Platforms'] = reqs.tools.slice(0, 6).map(t => t.name);
-    }
-    
-    if (reqs.softSkills.length > 0) {
-        keywordCategories['Soft Skills'] = reqs.softSkills.slice(0, 4);
-    }
-    
-    suggestions.atsKeywordChecklist = keywordCategories;
-    
-    const toolsMatch = reqs.tools.length > 0 
-        ? (toolsInProfile.length / reqs.tools.length) * 100 
-        : 100;
-    
-    if (toolsMatch >= 80) {
-        suggestions.predictedScore = "75-85% (molto buono)";
-    } else if (toolsMatch >= 60) {
-        suggestions.predictedScore = "65-75% (buono)";
-    } else {
-        suggestions.predictedScore = "55-65% (medio)";
-    }
-    
-    return suggestions;
 }
 
-function generateCVAboutSectionMartino(jdText) {
-    const reqs = extractRequirements(jdText);
-    
-    const focusAreas = [];
-    if (/media\s+(?:strategy|planning)/i.test(jdText)) focusAreas.push("media strategy and planning");
-    if (/performance|roi|kpi/i.test(jdText)) focusAreas.push("performance analysis");
-    if (/product/i.test(jdText)) focusAreas.push("product management");
-    if (/data|analytics/i.test(jdText)) focusAreas.push("data analysis");
-    
-    if (focusAreas.length === 0) focusAreas.push("digital strategy", "campaign optimization");
-    
-    let about = `Digital Media Planner with over ${martinoProfile.yearsExp} years of experience in ${focusAreas.slice(0, 2).join(' and ')} for international brands. `;
-    
-    if (reqs.tools.length > 0) {
-        const toolsToMention = reqs.tools.slice(0, 4).map(t => t.name).join(', ');
-        about += `Proficient in ${toolsToMention}, `;
-    }
-    
-    about += `specialized in optimizing omnichannel strategies and leveraging data-driven insights to improve marketing performance.`;
-    
-    return about.trim();
+function showSuccessModal(message) {
+    const modal = document.createElement('div');
+    modal.id = 'successModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; padding: 40px; border-radius: 12px; text-align: center; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+            <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
+            <pre style="white-space: pre-wrap; font-family: Arial; font-size: 14px; text-align: left; line-height: 1.8; margin: 0;">${message}</pre>
+            <button onclick="document.getElementById('successModal').remove()" 
+                    class="primary" 
+                    style="margin-top: 30px; padding: 12px 40px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
+                OK
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
 }
-// Job Application System V4 - Part 3
-// UI Functions, Event Handlers, Modals, Display Logic
 
 // ============================================
 // TAB SWITCHING
@@ -1561,40 +1543,40 @@ function generateDocumentsMartino() {
     document.getElementById('loading-martino').classList.add('show');
     document.getElementById('results-martino').classList.remove('show');
     
-    setTimeout(() => {
+    setTimeout(async () => {
         const industry = detectIndustry(jd);
-        const keywords = extractKeywordsAdvanced(jd, 15);
+        const keywords = await extractKeywordsAdvanced(jd, 15);
         const reqs = extractRequirements(jd);
         
-        const variants = generateCoverLetterVariants(jd, company, role, location, martinoProfile, industry);
+        const variants = generateCoverLetterVariantsBilingual(jd, company, role, location, martinoProfile, industry);
         const aboutMe = generateCVAboutSectionMartino(jd);
         const detailedSuggestions = generateDetailedCVSuggestions(jd, reqs, martinoProfile.coreSkills, industry);
         const competitiveAnalysis = generateCompetitiveAnalysis(martinoProfile, reqs);
         
-        const combinedText = variants.standard + ' ' + aboutMe;
+        const combinedText = variants.standard_it + ' ' + aboutMe;
         const atsScore = calculateATSScore(combinedText, keywords);
         
         const results = {
             atsScore,
-            coverLetter: variants.standard,
+            coverLetter: variants.standard_it,
             aboutMe,
             detailedSuggestions,
             keywords,
             variants,
             competitiveAnalysis,
             industry,
-            selectedStyle: 'standard'
+            selectedStyle: 'standard_it'
         };
         
         currentAnalysisResults = results;
         const analysisId = StorageManager.saveAnalysis(company, role, results, 'martino');
         
-        displayResultsMartino(atsScore, variants.standard, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId);
+        displayResultsMartino(atsScore, variants.standard_it, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId);
         
         document.getElementById('loading-martino').classList.remove('show');
         document.getElementById('results-martino').classList.add('show');
         document.getElementById('results-martino').scrollIntoView({ behavior: 'smooth' });
-    }, 5000);
+    }, 15000);
 }
 
 function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId) {
@@ -1605,7 +1587,6 @@ function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestio
     
     const compLevel = getCompetitivenessLevel(competitiveAnalysis.overallCompetitiveness);
     
-    // Auto-detect email from JD
     const detectedEmail = extractEmailFromJD(document.getElementById('jd').value);
     
     const resultsHTML = `
@@ -1689,16 +1670,19 @@ function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestio
         </div>
         
         <div class="card">
-            <h3 style="margin-bottom: 15px;">📄 Cover Letter - Scegli Stile</h3>
+            <h3 style="margin-bottom: 15px;">📄 Cover Letter - Scegli Stile & Lingua</h3>
             <div style="margin-bottom: 20px;">
                 <select id="coverLetterStyle" onchange="switchCoverLetterVariant()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px;">
-                    <option value="standard">Standard (formale) - Consigliato per corporate</option>
-                    <option value="bold">Bold (numeri-first) - Consigliato per startup/tech</option>
-                    <option value="storytelling">Storytelling (narrativo) - Consigliato per creative</option>
+                    <option value="standard_it">🇮🇹 Standard (Corporate/Finance)</option>
+                    <option value="bold_it">🇮🇹 Bold (Startup/Tech)</option>
+                    <option value="storytelling_it">🇮🇹 Storytelling (Creative)</option>
+                    <option value="standard_en">🇬🇧 Standard (Corporate/Finance)</option>
+                    <option value="bold_en">🇬🇧 Bold (Startup/Tech)</option>
+                    <option value="storytelling_en">🇬🇧 Storytelling (Creative)</option>
                 </select>
             </div>
             <div class="document-output">
-                <textarea id="editableCoverLetter" rows="20" style="width: 100%; padding: 10px; font-family: monospace; font-size: 13px; border: 2px solid #ddd; border-radius: 8px;">${variants.standard}</textarea>
+                <textarea id="editableCoverLetter" rows="20" style="width: 100%; padding: 10px; font-family: monospace; font-size: 13px; border: 2px solid #ddd; border-radius: 8px;">${variants.standard_it}</textarea>
                 <small style="color: #666;">💡 Modifica la cover letter secondo i suggerimenti prima di inviare</small>
                 <div class="download-section" style="margin-top: 15px;">
                     <button class="copy-btn" onclick="copyToClipboard('editableCoverLetter')">📋 Copia</button>
@@ -1774,35 +1758,14 @@ function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestio
                 <label style="font-weight: 600; margin-bottom: 8px; display: block;">Email Destinatario *</label>
                 <input type="email" id="recipientEmail" 
                        value="${detectedEmail || ''}"
-                       placeholder="es: jobs@enel.com, hr@company.com" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
+                       placeholder="es: jobs@company.com, hr@company.com" 
+                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
                 ${detectedEmail ? '<small style="color: #28a745;">✅ Email rilevata automaticamente dalla JD</small>' : '<small style="color: #666;">Cerca l\'email su LinkedIn o sito aziendale se non presente nella JD</small>'}
             </div>
             
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">CV Aggiornato * (PDF o DOCX)</label>
-                <input type="file" id="cvFile" accept=".pdf,.doc,.docx" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                <small style="color: #666;">Carica CV aggiornato secondo i suggerimenti del tool</small>
-            </div>
-            
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">📊 Portfolio (opzionale)</label>
-                <input type="file" id="portfolioFile" accept=".pdf,.pptx" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                <small style="color: #666;">Progetti, presentazioni, case study</small>
-            </div>
-            
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">📝 Altri Documenti (opzionale)</label>
-                <input type="file" id="extraFile" accept=".pdf,.doc,.docx" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                <small style="color: #666;">Certificazioni, referenze, etc.</small>
-            </div>
-            
-            <button onclick="previewEmail(${analysisId}, '${company.replace(/'/g, "\\'")}', '${role.replace(/'/g, "\\'")}'))" 
+            <button id="previewEmailBtn" 
                     class="primary" 
-                    style="width: 100%; padding: 15px; font-size: 16px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                    style="width: 100%; padding: 15px; font-size: 16px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
                 👁️ Preview & Invia Email
             </button>
         </div>
@@ -1813,15 +1776,20 @@ function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestio
     window.currentCoverLetterVariants = variants;
     window.currentCompany = company;
     window.currentRole = role;
+    
+    const emailBtn = document.getElementById('previewEmailBtn');
+    if (emailBtn) {
+        emailBtn.addEventListener('click', () => {
+            previewEmail(analysisId, company, role);
+        });
+    }
 }
 
 function switchCoverLetterVariant() {
     const style = document.getElementById('coverLetterStyle').value;
     const variants = window.currentCoverLetterVariants;
     
-    let selectedLetter = variants.standard;
-    if (style === 'bold') selectedLetter = variants.bold;
-    if (style === 'storytelling') selectedLetter = variants.storytelling;
+    const selectedLetter = variants[style] || variants.standard_it;
     
     document.getElementById('editableCoverLetter').value = selectedLetter;
     
@@ -1829,569 +1797,251 @@ function switchCoverLetterVariant() {
         currentAnalysisResults.selectedStyle = style;
     }
 }
+// Job Application System V4.1 - Part 5
+// History, Feedback System, Export/Import, Generic CV Functions, Utilities
 
 // ============================================
-// EMAIL PREVIEW & SEND (MAILTO VERSION)
+// HISTORY & FEEDBACK MANAGEMENT
 // ============================================
-async function previewEmail(analysisId, company, role) {
-    const recipientEmail = document.getElementById('recipientEmail').value.trim();
-    const coverLetter = document.getElementById('editableCoverLetter').value.trim();
-    
-    if (!recipientEmail || !coverLetter) {
-        alert('⚠️ Campi obbligatori: Email destinatario e Cover Letter');
-        return;
-    }
-    
-    const modal = document.createElement('div');
-    modal.id = 'emailPreviewModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('emailPreviewModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h2 style="margin: 0 0 20px 0;">📧 Preview Email</h2>
-            
-            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 13px;">
-                    <strong>💡 Si aprirà Gmail con email pre-compilata.</strong><br>
-                    Dovrai allegare manualmente: CV, Portfolio (se necessario).
-                </p>
-            </div>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="margin: 5px 0;"><strong>Da:</strong> martino.cicerani@gmail.com (Gmail nativo)</p>
-                <p style="margin: 5px 0;"><strong>A:</strong> ${recipientEmail}</p>
-                <p style="margin: 5px 0;"><strong>Oggetto:</strong> Candidatura ${role} - Martino Cicerani</p>
-                <p style="margin: 5px 0;"><strong>Allegati:</strong> Da aggiungere manualmente in Gmail</p>
-            </div>
-            
-            <div style="border: 2px solid #ddd; padding: 20px; border-radius: 8px; background: white; max-height: 400px; overflow-y: auto;">
-                <pre style="white-space: pre-wrap; font-family: Arial; font-size: 13px; margin: 0;">${coverLetter}</pre>
-            </div>
-            
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button onclick="approveAndSendEmail(${analysisId})" 
-                        class="primary" 
-                        style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px;">
-                    📧 Apri in Gmail
-                </button>
-                <button onclick="document.getElementById('emailPreviewModal').remove()" 
-                        class="secondary" 
-                        style="flex: 1; padding: 12px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer;">
-                    ✏️ Modifica
-                </button>
-            </div>
-            
-            <p style="font-size: 12px; color: #666; margin-top: 15px; text-align: center;">
-                📊 Installa <a href="https://mailtrack.io" target="_blank">Mailtrack</a> per tracking aperture gratis
-            </p>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
 
-async function approveAndSendEmail(analysisId) {
-    const recipientEmail = document.getElementById('recipientEmail').value.trim();
-    const coverLetter = document.getElementById('editableCoverLetter').value.trim();
-    
-    document.getElementById('emailPreviewModal').remove();
-    
-    try {
-        const result = await sendApplicationEmail({
-            analysisId,
-            recipientEmail,
-            coverLetter,
-            role: window.currentRole
-        });
-        
-        if (result.success) {
-            showSuccessModal(`
-                ✅ Gmail aperto con email pre-compilata!
-                
-                Prossimi step:
-                1. Allega CV manualmente
-                2. Allega Portfolio (se necessario)
-                3. Verifica email e invia
-                
-                💡 Se hai Mailtrack installato, riceverai notifica quando l'email viene aperta.
-                
-                📊 Ricordati di aggiornare il risultato entro 15 giorni.
-            `);
-        } else {
-            throw new Error(result.error);
-        }
-        
-    } catch (error) {
-        alert('❌ Errore apertura Gmail: ' + error.message);
-        console.error(error);
-    }
-}
-
-// ============================================
-// HISTORY MODAL
-// ============================================
 function showHistory() {
     const history = StorageManager.getHistory();
     
     if (history.length === 0) {
-        alert('📋 Nessuna analisi salvata');
+        alert('Nessuna analisi salvata');
         return;
     }
     
-    let html = '<h3 style="margin: 0 0 20px 0;">📋 Cronologia Candidature (ultime 50)</h3>';
-    html += '<div style="max-height: 500px; overflow-y: auto;">';
+    const modal = document.createElement('div');
+    modal.id = 'historyModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
     
-    history.forEach(entry => {
-        const date = new Date(entry.date).toLocaleDateString('it-IT');
-        const badge = entry.type === 'martino' ? '👤 Personale' : '📄 Generico';
-        const statusBadge = entry.status === 'sent' ? '📤 Inviata' : 
-                           entry.status === 'auto-ghosted' ? '👻 Ghosted' :
-                           entry.status === 'completed' ? '✅ Completed' : '📝 Bozza';
-        
-        html += `
-            <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; background: #f9f9f9;">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div style="flex: 1;">
-                        <div style="margin-bottom: 8px;">
-                            <span style="background: #667eea; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; margin-right: 5px;">${badge}</span>
-                            <span style="background: ${entry.status === 'sent' ? '#28a745' : entry.status === 'auto-ghosted' ? '#dc3545' : '#ffc107'}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px;">${statusBadge}</span>
-                        </div>
-                        <strong style="font-size: 15px;">${entry.company} - ${entry.role}</strong>
-                        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
-                            ${date} | ATS Score: ${entry.atsScore}%
-                            ${entry.emailSent ? ` | Inviata a: ${entry.recipientEmail}` : ''}
-                        </p>
-                    </div>
-                    <div style="display: flex; gap: 5px;">
-                        <button class="copy-btn" onclick="loadHistoryAnalysis(${entry.id})" style="font-size: 12px; padding: 6px 12px;">📂 Ricarica</button>
-                        ${entry.emailSent && !entry.feedbackCompleted ? `
-                            <button class="primary" onclick="showFeedbackForm(${entry.id})" style="font-size: 12px; padding: 6px 12px; background: #28a745;">📊 Feedback</button>
-                        ` : ''}
-                        <button class="remove-btn" onclick="deleteHistoryEntry(${entry.id})" style="font-size: 12px; padding: 6px 12px;">🗑️</button>
-                    </div>
-                </div>
+    const statusBadge = (status) => {
+        const badges = {
+            'draft': '📝 Bozza',
+            'sent': '📤 Inviata',
+            'pending': '⏳ In attesa',
+            'auto-ghosted': '👻 Auto-ghosted',
+            'completed': '✅ Completed'
+        };
+        const colors = {
+            'draft': '#6c757d',
+            'sent': '#667eea',
+            'pending': '#ffc107',
+            'auto-ghosted': '#dc3545',
+            'completed': '#28a745'
+        };
+        return `<span style="background: ${colors[status]}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${badges[status]}</span>`;
+    };
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
+            <button onclick="document.getElementById('historyModal').remove()" 
+                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0;">📋 Cronologia Candidature (${history.length})</h2>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button onclick="StorageManager.exportData()" class="primary" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    📤 Esporta Dati
+                </button>
+                <button onclick="showImportDialog()" class="secondary" style="padding: 10px 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    📥 Importa Dati
+                </button>
+                <button onclick="showLearningStats()" class="secondary" style="padding: 10px 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    📊 Statistiche
+                </button>
             </div>
-        `;
-    });
+            
+            <div style="display: grid; gap: 15px;">
+                ${history.map(entry => `
+                    <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                            <div>
+                                <h4 style="margin: 0 0 5px 0; color: #333;">${entry.company} - ${entry.role}</h4>
+                                <small style="color: #666;">${new Date(entry.date).toLocaleDateString('it-IT')} | ATS: ${entry.atsScore}%${entry.emailSent ? ` | Inviata a: ${entry.recipientEmail}` : ''}</small>
+                            </div>
+                            ${statusBadge(entry.status)}
+                        </div>
+                        
+                        ${entry.feedbackCompleted ? `
+                            <div style="background: #e8f5e9; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
+                                <strong>Outcome:</strong> ${entry.outcome} ${entry.interviewType ? `(${entry.interviewType})` : ''}<br>
+                                <strong>Response time:</strong> ${entry.responseTime} giorni<br>
+                                ${entry.feedbackNotes ? `<strong>Note:</strong> ${entry.feedbackNotes}` : ''}
+                            </div>
+                        ` : entry.status === 'sent' || entry.status === 'auto-ghosted' ? `
+                            <div style="margin-top: 10px;">
+                                <button onclick="showFeedbackForm(${entry.id})" class="secondary" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                    📊 Aggiungi Feedback
+                                </button>
+                            </div>
+                        ` : ''}
+                        
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button onclick="reloadAnalysis(${entry.id})" class="secondary" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                📂 Ricarica
+                            </button>
+                            <button onclick="deleteAnalysis(${entry.id})" class="secondary" style="flex: 1; padding: 8px; background: #fff; border: 1px solid #dc3545; color: #dc3545; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                🗑️ Elimina
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
     
-    html += '</div>';
-    html += '<div style="margin-top: 20px; display: flex; gap: 10px;">';
-    html += '<button class="secondary" onclick="StorageManager.exportData()">📤 Esporta Dati</button>';
-    html += '<button class="secondary" onclick="showImportInstructions()">📥 Importa Dati</button>';
-    html += '<button class="remove-btn" onclick="clearAllHistory()">🗑️ Cancella Tutto</button>';
-    html += '</div>';
-    
-    showModal(html);
+    document.body.appendChild(modal);
 }
 
-function loadHistoryAnalysis(id) {
+function reloadAnalysis(id) {
     const entry = StorageManager.getAnalysis(id);
-    if (!entry) return;
-    
-    closeModal();
-    
-    if (entry.type === 'martino') {
-        switchTab('martino');
-        document.getElementById('company').value = entry.company;
-        document.getElementById('role').value = entry.role;
-        
-        if (entry.fullResults) {
-            displayResultsMartino(
-                entry.fullResults.atsScore,
-                entry.fullResults.coverLetter,
-                entry.fullResults.aboutMe,
-                entry.fullResults.detailedSuggestions,
-                entry.company,
-                entry.role,
-                entry.fullResults.keywords,
-                entry.fullResults.variants,
-                entry.fullResults.competitiveAnalysis,
-                entry.fullResults.industry,
-                entry.id
-            );
-            document.getElementById('results-martino').classList.add('show');
-        }
+    if (!entry) {
+        alert('Analisi non trovata');
+        return;
     }
     
-    alert('✓ Analisi ricaricata!');
+    document.getElementById('company').value = entry.company;
+    document.getElementById('role').value = entry.role;
+    
+    if (entry.fullResults) {
+        currentAnalysisResults = entry.fullResults;
+        
+        const results = entry.fullResults;
+        displayResultsMartino(
+            results.atsScore,
+            results.coverLetter,
+            results.aboutMe,
+            results.detailedSuggestions,
+            entry.company,
+            entry.role,
+            results.keywords,
+            results.variants,
+            results.competitiveAnalysis,
+            results.industry,
+            id
+        );
+        
+        switchTab('martino');
+        document.getElementById('results-martino').classList.add('show');
+        document.getElementById('results-martino').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    const modal = document.getElementById('historyModal');
+    if (modal) modal.remove();
 }
 
-function deleteHistoryEntry(id) {
+function deleteAnalysis(id) {
     if (confirm('Eliminare questa analisi?')) {
         StorageManager.deleteAnalysis(id);
-        closeModal();
         showHistory();
     }
 }
 
-function clearAllHistory() {
-    if (confirm('Eliminare tutta la cronologia? (Azione irreversibile)\n\nConsiglio: Esporta i dati prima di cancellare.')) {
-        StorageManager.clearHistory();
-        closeModal();
-        alert('✓ Cronologia cancellata');
-    }
-}
-
-// ============================================
-// FEEDBACK FORM
-// ============================================
 function showFeedbackForm(id) {
     const entry = StorageManager.getAnalysis(id);
     if (!entry) return;
     
-    const sentDate = new Date(entry.sentDate);
-    const daysPassed = Math.floor((new Date() - sentDate) / (1000 * 60 * 60 * 24));
-    
-    const html = `
-        <h3>📊 Aggiorna Risultato Candidatura</h3>
-        
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <strong style="font-size: 15px;">${entry.company} - ${entry.role}</strong>
-            <p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">
-                Inviata il ${sentDate.toLocaleDateString('it-IT')} (${daysPassed} giorni fa)
-                ${entry.status === 'auto-ghosted' ? '<br><span style="color: #dc3545;">⚠️ Auto-ghosted dopo 15 giorni - Puoi comunque aggiornare</span>' : ''}
-            </p>
-        </div>
-        
-        <div style="margin: 20px 0;">
-            <label style="font-weight: 600; display: block; margin-bottom: 8px;">Hai ricevuto risposta?</label>
-            <select id="feedbackOutcome" onchange="toggleResponseDetails()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                <option value="ghosted">👻 Nessuna risposta (ghosted)</option>
-                <option value="interview">✅ Colloquio fissato</option>
-                <option value="rejection">❌ Candidatura rifiutata</option>
-            </select>
-        </div>
-        
-        <div id="responseDetails" style="display: none; margin: 20px 0;">
-            <label style="font-weight: 600; display: block; margin-bottom: 8px;">Dopo quanti giorni?</label>
-            <input type="number" id="responseTime" value="${daysPassed}" min="1" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 15px;">
+    const modal = document.createElement('div');
+    modal.id = 'feedbackModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 30px; position: relative;">
+            <button onclick="document.getElementById('feedbackModal').remove()" 
+                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
             
-            <label style="font-weight: 600; display: block; margin-bottom: 8px;">Tipo colloquio (opzionale):</label>
-            <select id="interviewType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px;">
-                <option value="">-- Seleziona --</option>
-                <option value="phone">📞 Telefonico</option>
-                <option value="video">📹 Video call</option>
-                <option value="onsite">🏢 In sede</option>
-                <option value="technical">💻 Test tecnico</option>
-            </select>
-        </div>
-        
-        <div style="margin: 20px 0;">
-            <label style="font-weight: 600; display: block; margin-bottom: 8px;">Note/Feedback (opzionale):</label>
-            <textarea id="feedbackNotes" rows="4" placeholder="Es: Hanno apprezzato esperienza automotive. Colloquio positivo, in attesa di secondo step..." style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-family: Arial;"></textarea>
-        </div>
-        
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="submitFeedback(${id})" class="primary" style="flex: 1; padding: 12px;">💾 Salva Feedback</button>
-            <button onclick="closeModal()" class="secondary" style="flex: 1; padding: 12px;">Annulla</button>
+            <h3 style="margin: 0 0 20px 0;">📊 Feedback - ${entry.company}</h3>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Outcome *</label>
+                <select id="feedbackOutcome" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    <option value="">-- Seleziona --</option>
+                    <option value="interview">✅ Colloquio fissato</option>
+                    <option value="rejection">❌ Rifiutato</option>
+                    <option value="ghosted">👻 Nessuna risposta (ghosting)</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Giorni di risposta</label>
+                <input type="number" id="feedbackResponseTime" placeholder="es: 7" min="0" max="90" 
+                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
+            </div>
+            
+            <div class="form-group" id="interviewTypeContainer" style="margin-bottom: 15px; display: none;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Tipo colloquio</label>
+                <select id="feedbackInterviewType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    <option value="">-- Seleziona --</option>
+                    <option value="phone">📞 Telefonico</option>
+                    <option value="video">📹 Video call</option>
+                    <option value="in-person">🏢 Di persona</option>
+                    <option value="technical">💻 Tecnico</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Note</label>
+                <textarea id="feedbackNotes" rows="3" placeholder="Eventuali note..." 
+                          style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;"></textarea>
+            </div>
+            
+            <button onclick="submitFeedback(${id})" class="primary" style="width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
+                💾 Salva Feedback
+            </button>
         </div>
     `;
     
-    showModal(html);
-}
-
-function toggleResponseDetails() {
-    const outcome = document.getElementById('feedbackOutcome').value;
-    const details = document.getElementById('responseDetails');
+    document.body.appendChild(modal);
     
-    if (outcome === 'interview' || outcome === 'rejection') {
-        details.style.display = 'block';
-    } else {
-        details.style.display = 'none';
-    }
+    document.getElementById('feedbackOutcome').addEventListener('change', (e) => {
+        const container = document.getElementById('interviewTypeContainer');
+        if (e.target.value === 'interview') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    });
 }
 
 function submitFeedback(id) {
     const outcome = document.getElementById('feedbackOutcome').value;
-    const responseTime = parseInt(document.getElementById('responseTime')?.value) || null;
-    const interviewType = document.getElementById('interviewType')?.value || null;
-    const feedbackNotes = document.getElementById('feedbackNotes').value;
+    const responseTime = parseInt(document.getElementById('feedbackResponseTime').value) || 0;
+    const interviewType = document.getElementById('feedbackInterviewType').value;
+    const notes = document.getElementById('feedbackNotes').value;
+    
+    if (!outcome) {
+        alert('Seleziona un outcome');
+        return;
+    }
     
     const feedbackData = {
         outcome,
         responseTime,
-        interviewType,
-        feedbackNotes
+        interviewType: outcome === 'interview' ? interviewType : null,
+        feedbackNotes: notes
     };
     
     StorageManager.updateFeedback(id, feedbackData);
     
-    closeModal();
-    alert('✅ Feedback salvato! Il sistema ha aggiornato i dati di learning.');
+    const modal = document.getElementById('feedbackModal');
+    if (modal) modal.remove();
     
     showHistory();
 }
 
-// ============================================
-// EXPORT/IMPORT UI
-// ============================================
-function showExportInstructions() {
-    const modal = `
-        <h3>✅ Dati Esportati!</h3>
-        
-        <p style="margin: 20px 0;">File <strong>job_app_backup_${new Date().toISOString().split('T')[0]}.json</strong> scaricato.</p>
-        
-        <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h4 style="margin: 0 0 10px 0; color: #2e7d32;">📤 Per salvarlo su Google Drive:</h4>
-            <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                <li>Apri <a href="https://drive.google.com" target="_blank">Google Drive</a></li>
-                <li>Click "Nuovo" → "Carica file"</li>
-                <li>Seleziona il file JSON appena scaricato</li>
-                <li>Salvalo in una cartella dedicata (es: "Job App Backups")</li>
-            </ol>
-        </div>
-        
-        <p style="font-size: 13px; color: #666;">
-            💡 <strong>Tip:</strong> Esporta i dati ogni settimana per avere un backup aggiornato.
-            Usa questo file per sincronizzare dati tra dispositivi diversi.
-        </p>
-        
-        <button onclick="closeModal()" class="primary" style="width: 100%; margin-top: 20px;">OK</button>
-    `;
-    
-    showModal(modal);
-}
-
-function showImportInstructions() {
-    const modal = `
-        <h3>📥 Importa Dati da Backup</h3>
-        
-        <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h4 style="margin: 0 0 10px 0; color: #e65100;">📥 Per importare da Google Drive:</h4>
-            <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                <li>Apri <a href="https://drive.google.com" target="_blank">Google Drive</a></li>
-                <li>Trova il file <strong>job_app_backup_YYYY-MM-DD.json</strong></li>
-                <li>Click destro → Download</li>
-                <li>Torna qui e usa il pulsante sotto</li>
-            </ol>
-        </div>
-        
-        <div id="dropZone" style="border: 3px dashed #667eea; padding: 40px; text-align: center; border-radius: 8px; margin: 20px 0; background: #f8f9ff; cursor: pointer;"
-             ondragover="event.preventDefault(); this.style.background='#e3e7ff';"
-             ondragleave="this.style.background='#f8f9ff';"
-             ondrop="handleFileDrop(event)">
-            <p style="margin: 0; font-size: 16px; color: #667eea;">📂 Trascina qui il file JSON</p>
-            <p style="margin: 10px 0 0 0; font-size: 13px; color: #666;">oppure</p>
-            <button onclick="document.getElementById('importFileInput').click()" class="secondary" style="margin-top: 10px;">Sfoglia File</button>
-            <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
-        </div>
-        
-        <button onclick="closeModal()" class="secondary" style="width: 100%;">Annulla</button>
-    `;
-    
-    showModal(modal);
-}
-
-function handleFileDrop(event) {
-    event.preventDefault();
-    event.target.style.background = '#f8f9ff';
-    
-    const file = event.dataTransfer.files[0];
-    if (file && file.type === 'application/json') {
-        readAndImportFile(file);
-    } else {
-        alert('⚠️ File deve essere .json');
-    }
-}
-
-function handleFileImport(event) {
-    const file = event.target.files[0];
-    if (file) {
-        readAndImportFile(file);
-    }
-}
-
-function readAndImportFile(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = e.target.result;
-            StorageManager.importData(data);
-            closeModal();
-        } catch (error) {
-            alert('❌ Errore import: ' + error.message);
-        }
-    };
-    reader.readAsText(file);
-}
-
-// ============================================
-// GENERIC CV SECTION
-// ============================================
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    if (file.size > 5 * 1024 * 1024) {
-        alert('File troppo grande! Max 5MB');
-        return;
-    }
-    
-    uploadedFileName = file.name;
-    
-    document.getElementById('uploadedFileInfo').innerHTML = `
-        <div class="uploaded-file">
-            <span>📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>
-            <button class="remove-btn" onclick="removeFile()">✕</button>
-        </div>
-    `;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        if (file.type === 'application/pdf') {
-            parsePDF(e.target.result);
-        } else {
-            uploadedCVText = e.target.result;
-            showCVPreview(uploadedCVText);
-        }
-    };
-    
-    if (file.type === 'application/pdf') {
-        reader.readAsArrayBuffer(file);
-    } else {
-        reader.readAsText(file);
-    }
-    
-    document.getElementById('analyzeBtn').disabled = false;
-}
-
-async function parsePDF(arrayBuffer) {
-    try {
-        const text = await extractTextFromPDF(arrayBuffer);
-        uploadedCVText = text;
-        showCVPreview(text);
-    } catch (error) {
-        alert('Errore parsing PDF. Prova DOCX o copy/paste.');
-        console.error(error);
-    }
-}
-
-function showCVPreview(text) {
-    const preview = text.substring(0, 1000) + (text.length > 1000 ? '...' : '');
-    document.getElementById('cvPreview').innerHTML = `
-        <div class="cv-preview">
-            <h3>📄 Preview (1000 char)</h3>
-            <pre>${preview}</pre>
-            <p style="font-size: 12px; color: #666; margin-top: 10px;">Verifica correttezza. Parsing potrebbe non essere perfetto per layout complessi.</p>
-        </div>
-    `;
-}
-
-function removeFile() {
-    uploadedCVText = '';
-    uploadedFileName = '';
-    document.getElementById('cvFile').value = '';
-    document.getElementById('uploadedFileInfo').innerHTML = '';
-    document.getElementById('cvPreview').innerHTML = '';
-    document.getElementById('analyzeBtn').disabled = true;
-}
-
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-function copyToClipboard(elementId) {
-    const element = document.getElementById(elementId);
-    let text = element.tagName === 'TEXTAREA' ? element.value : element.textContent;
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('✓ Copiato!');
-    }).catch(() => {
-        // Fallback
-        element.select();
-        document.execCommand('copy');
-        alert('✓ Copiato!');
-    });
-}
-
-function downloadCoverLetter() {
-    const coverLetter = document.getElementById('editableCoverLetter').value;
-    const company = window.currentCompany;
-    
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>body { font-family: Arial; line-height: 1.6; margin: 2cm; }</style>
-</head>
-<body>
-    <pre style="font-family: Arial; white-space: pre-wrap;">${coverLetter}</pre>
-</body>
-</html>`;
-    
-    const blob = new Blob([html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Cover_Letter_${company.replace(/\s+/g, '_')}_Martino_Cicerani.doc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-function showModal(content) {
-    const modal = document.createElement('div');
-    modal.id = 'customModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
-            <button onclick="closeModal()" style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            ${content}
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-function closeModal() {
-    const modal = document.getElementById('customModal');
-    if (modal) modal.remove();
-}
-
-function showLoadingModal(message) {
-    const modal = document.createElement('div');
-    modal.id = 'loadingModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center;';
-    modal.innerHTML = `
-        <div style="background: white; padding: 40px; border-radius: 12px; text-align: center;">
-            <div style="font-size: 40px; margin-bottom: 20px;">⏳</div>
-            <p style="margin: 0; font-size: 16px;">${message}</p>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    return modal;
-}
-
-function showSuccessModal(message) {
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center;';
-    modal.innerHTML = `
-        <div style="background: white; padding: 40px; border-radius: 12px; text-align: center; max-width: 500px;">
-            <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
-            <pre style="white-space: pre-wrap; font-family: Arial; font-size: 14px; text-align: left;">${message}</pre>
-            <button onclick="this.closest('div[style*=fixed]').remove()" class="primary" style="margin-top: 20px; padding: 12px 30px;">OK</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
 function showFeedbackReminder(app) {
-    if (Notification.permission === 'granted') {
-        new Notification('Job Application Assistant', {
-            body: `Hai inviato candidatura a ${app.company} 15 giorni fa. Aggiorna il risultato!`
-        });
-    }
-    
     const banner = document.createElement('div');
-    banner.style.cssText = 'position: fixed; top: 20px; right: 20px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9998; max-width: 350px;';
+    banner.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #fff3cd; border: 2px solid #ff9800; border-radius: 8px; padding: 15px; max-width: 350px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
     banner.innerHTML = `
-        <h4 style="margin: 0 0 10px 0;">📊 Reminder Feedback</h4>
-        <p style="margin: 0 0 15px 0; font-size: 13px;">Hai inviato candidatura a <strong>${app.company}</strong> 15 giorni fa.</p>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="showFeedbackForm(${app.id}); this.closest('div[style*=fixed]').remove();" class="primary" style="flex: 1; padding: 8px; font-size: 13px;">Aggiorna</button>
-            <button onclick="this.closest('div[style*=fixed]').remove();" class="secondary" style="flex: 1; padding: 8px; font-size: 13px;">Dopo</button>
-        </div>
+        <h4 style="margin: 0 0 10px 0; color: #856404;">⏰ Reminder Feedback</h4>
+        <p style="margin: 0 0 10px 0; font-size: 13px;">Sono passati 15 giorni dalla candidatura a <strong>${app.company}</strong>. Aggiungi feedback!</p>
+        <button onclick="showFeedbackForm(${app.id}); this.parentElement.remove();" style="width: 100%; padding: 8px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 5px;">
+            📊 Aggiungi Ora
+        </button>
+        <button onclick="this.parentElement.remove();" style="width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px;">
+            Ricordamelo dopo
+        </button>
     `;
     document.body.appendChild(banner);
     
@@ -2399,12 +2049,419 @@ function showFeedbackReminder(app) {
 }
 
 // ============================================
-// INITIALIZE
+// LEARNING STATS DISPLAY
 // ============================================
-document.addEventListener('DOMContentLoaded', function() {
-    checkFeedbackStatus();
+
+function showLearningStats() {
+    const learning = StorageManager.getLearningData();
     
-    if (Notification.permission === 'default') {
-        Notification.requestPermission();
+    const modal = document.createElement('div');
+    modal.id = 'statsModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    
+    let industryStatsHTML = '<p style="color: #666;">Nessun dato disponibile</p>';
+    if (Object.keys(learning.industryStats).length > 0) {
+        industryStatsHTML = Object.entries(learning.industryStats).map(([industry, stats]) => {
+            const successRate = stats.applications > 0 ? Math.round((stats.interviews / stats.applications) * 100) : 0;
+            return `
+                <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa; margin-bottom: 10px;">
+                    <h4 style="margin: 0 0 10px 0; color: #667eea; text-transform: capitalize;">${industry}</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 13px;">
+                        <div>
+                            <strong>Applications:</strong> ${stats.applications}
+                        </div>
+                        <div>
+                            <strong>Interviews:</strong> ${stats.interviews}
+                        </div>
+                        <div>
+                            <strong>Success Rate:</strong> ${successRate}%
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 13px;">
+                        <strong>Avg ATS Score:</strong> ${stats.avgAtsScore}%
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
-});
+    
+    let styleStatsHTML = '<p style="color: #666;">Nessun dato disponibile</p>';
+    if (Object.keys(learning.styleEffectiveness).length > 0) {
+        styleStatsHTML = Object.entries(learning.styleEffectiveness).map(([style, stats]) => {
+            const styleNames = {
+                'standard_it': '🇮🇹 Standard',
+                'bold_it': '🇮🇹 Bold',
+                'storytelling_it': '🇮🇹 Storytelling',
+                'standard_en': '🇬🇧 Standard',
+                'bold_en': '🇬🇧 Bold',
+                'storytelling_en': '🇬🇧 Storytelling'
+            };
+            return `
+                <div style="border: 2px solid #e0e0e0; padding: 12px; border-radius: 8px; background: #fafafa; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: #333;">${styleNames[style] || style}</strong>
+                        <span style="background: ${stats.successRate >= 50 ? '#28a745' : '#ffc107'}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+                            ${stats.successRate}% success
+                        </span>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                        Used: ${stats.used}x | Interviews: ${stats.interviews}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
+            <button onclick="document.getElementById('statsModal').remove()" 
+                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
+            
+            <h2 style="margin: 0 0 20px 0;">📊 Learning Statistics</h2>
+            
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #667eea; margin-bottom: 15px;">📈 Industry Performance</h3>
+                ${industryStatsHTML}
+            </div>
+            
+            <div>
+                <h3 style="color: #667eea; margin-bottom: 15px;">✍️ Cover Letter Style Effectiveness</h3>
+                ${styleStatsHTML}
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #2196f3;">
+                <p style="margin: 0; font-size: 13px; color: #0d47a1;">
+                    💡 <strong>Tip:</strong> Usa questi dati per ottimizzare la tua strategia di candidatura. 
+                    Focus sulle industry con migliori success rate e usa gli stili cover letter più efficaci.
+                </p>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// ============================================
+// EXPORT/IMPORT HELPERS
+// ============================================
+
+function showExportInstructions() {
+    const modal = document.createElement('div');
+    modal.id = 'exportInstructionsModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+            <h3 style="margin: 0 0 15px 0; color: #667eea;">✅ Backup Salvato!</h3>
+            <p style="margin: 0 0 15px 0; font-size: 14px;">Il file JSON è stato scaricato sul tuo computer.</p>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
+                <h4 style="margin: 0 0 10px 0; color: #0d47a1;">📂 Carica su Google Drive:</h4>
+                <ol style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">
+                    <li>Vai su <a href="https://drive.google.com" target="_blank" style="color: #2196f3;">drive.google.com</a></li>
+                    <li>Click "Nuovo" → "Caricamento file"</li>
+                    <li>Seleziona il file JSON appena scaricato</li>
+                    <li>Il file sarà disponibile su tutti i tuoi dispositivi</li>
+                </ol>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ff9800;">
+                <p style="margin: 0; font-size: 13px; color: #856404;">
+                    💡 <strong>Tip:</strong> Fai backup regolari (ogni 10 candidature) per non perdere i tuoi dati.
+                </p>
+            </div>
+            
+            <button onclick="document.getElementById('exportInstructionsModal').remove()" 
+                    class="primary" 
+                    style="margin-top: 20px; width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px;">
+                OK, Capito!
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function showImportDialog() {
+    const modal = document.createElement('div');
+    modal.id = 'importModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10001; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 30px; position: relative;">
+            <button onclick="document.getElementById('importModal').remove()" 
+                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
+            
+            <h3 style="margin: 0 0 20px 0;">📥 Importa Dati</h3>
+            
+            <div style="border: 2px dashed #667eea; border-radius: 8px; padding: 30px; text-align: center; background: #f8f9fa; margin-bottom: 15px;" 
+                 id="dropZone"
+                 ondragover="event.preventDefault(); this.style.background='#e3f2fd';"
+                 ondragleave="this.style.background='#f8f9fa';"
+                 ondrop="handleFileDrop(event)">
+                <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">📁 Trascina il file JSON qui</p>
+                <p style="margin: 0; font-size: 12px; color: #999;">oppure</p>
+                <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="handleFileSelect(event)">
+                <button onclick="document.getElementById('importFileInput').click()" 
+                        style="margin-top: 10px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                    Seleziona File
+                </button>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 12px; border-radius: 8px; border-left: 4px solid #ff9800;">
+                <p style="margin: 0; font-size: 12px; color: #856404;">
+                    ⚠️ Potrai scegliere se unire o sovrascrivere i dati esistenti dopo aver selezionato il file.
+                </p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function handleFileDrop(event) {
+    event.preventDefault();
+    event.currentTarget.style.background = '#f8f9fa';
+    
+    const file = event.dataTransfer.files[0];
+    if (file && file.type === 'application/json') {
+        processImportFile(file);
+    } else {
+        alert('File non valido. Seleziona un file JSON.');
+    }
+}
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        processImportFile(file);
+    }
+}
+
+function processImportFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            StorageManager.importData(data);
+            
+            const modal = document.getElementById('importModal');
+            if (modal) modal.remove();
+            
+        } catch (error) {
+            alert('Errore lettura file: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ============================================
+// GENERIC CV FUNCTIONS
+// ============================================
+
+function generateDocumentsGeneric() {
+    const cvText = document.getElementById('generic-cv').value.trim();
+    const jd = document.getElementById('generic-jd').value.trim();
+    
+    if (!cvText || !jd) {
+        alert('Compila tutti i campi obbligatori');
+        return;
+    }
+    
+    document.getElementById('loading-generic').classList.add('show');
+    document.getElementById('results-generic').classList.remove('show');
+    
+    setTimeout(async () => {
+        const keywords = await extractKeywordsAdvanced(jd, 15);
+        const atsScore = calculateATSScore(cvText, keywords);
+        
+        displayResultsGeneric(atsScore, keywords);
+        
+        document.getElementById('loading-generic').classList.remove('show');
+        document.getElementById('results-generic').classList.add('show');
+        document.getElementById('results-generic').scrollIntoView({ behavior: 'smooth' });
+    }, 15000);
+}
+
+function displayResultsGeneric(atsScore, keywords) {
+    let interpretation = '';
+    if (atsScore.score >= 70) interpretation = '✅ Ottimo match!';
+    else if (atsScore.score >= 50) interpretation = '⚠️ Buon match';
+    else interpretation = '❌ Match basso';
+    
+    const resultsHTML = `
+        <div class="card">
+            <div class="score-display">
+                <div class="score-number">${atsScore.score}%</div>
+                <div class="score-label">ATS Match Score</div>
+                <div class="score-interpretation">${interpretation}</div>
+            </div>
+            
+            <div class="keyword-section">
+                <h3>✅ Keyword Matchate (${atsScore.matchedKeywords})</h3>
+                <div class="keyword-tags">
+                    ${atsScore.matches.map(kw => `<span class="keyword-tag matched">${kw}</span>`).join('')}
+                </div>
+            </div>
+            
+            <div class="keyword-section">
+                <h3>⚠️ Keyword Mancanti (${atsScore.missing.length})</h3>
+                <div class="keyword-tags">
+                    ${atsScore.missing.slice(0, 10).map(kw => `<span class="keyword-tag missing">${kw}</span>`).join('')}
+                </div>
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #2196f3;">
+                <p style="margin: 0; font-size: 13px; color: #0d47a1;">
+                    💡 <strong>Suggerimento:</strong> Aggiungi le keyword mancanti nel tuo CV per aumentare lo score ATS.
+                </p>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('results-generic').innerHTML = resultsHTML;
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.tagName === 'TEXTAREA' || element.tagName === 'INPUT' 
+        ? element.value 
+        : element.textContent;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✅ Copiato!';
+        setTimeout(() => {
+            btn.textContent = originalText;
+        }, 2000);
+    }).catch(err => {
+        alert('Errore copia: ' + err);
+    });
+}
+
+function downloadCoverLetter() {
+    const coverLetter = document.getElementById('editableCoverLetter').value;
+    const company = window.currentCompany || 'Company';
+    const role = window.currentRole || 'Role';
+    
+    const blob = new Blob([coverLetter], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CoverLetter_${company}_${role}_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function handleCVUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    uploadedFileName = file.name;
+    
+    const reader = new FileReader();
+    
+    if (file.type === 'application/pdf') {
+        reader.onload = async (e) => {
+            const arrayBuffer = e.target.result;
+            uploadedCVText = await extractTextFromPDF(arrayBuffer);
+            
+            if (uploadedCVText.trim().length > 50) {
+                alert(`✅ PDF caricato: ${file.name}\n\n${uploadedCVText.length} caratteri estratti`);
+            } else {
+                alert('⚠️ Testo estratto troppo breve. Prova con DOCX o copia/incolla manualmente.');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        alert('⚠️ Upload DOCX non supportato direttamente. Copia/incolla il testo del CV nella textarea.');
+        
+    } else {
+        reader.onload = (e) => {
+            uploadedCVText = e.target.result;
+            alert(`✅ File caricato: ${file.name}`);
+        };
+        reader.readAsText(file);
+    }
+}
+
+// ============================================
+// QUEUE MODE (Chrome Extension Integration)
+// ============================================
+
+function loadQueueMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode');
+    
+    if (mode === 'queue') {
+        const queueData = urlParams.get('data');
+        if (queueData) {
+            try {
+                const queue = JSON.parse(decodeURIComponent(queueData));
+                displayQueueJobs(queue);
+            } catch (error) {
+                console.error('Error loading queue:', error);
+            }
+        }
+    }
+}
+
+function displayQueueJobs(queue) {
+    if (queue.length === 0) return;
+    
+    const modal = document.createElement('div');
+    modal.id = 'queueModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px;">
+            <h2 style="margin: 0 0 20px 0;">📂 Job Queue (${queue.length})</h2>
+            <p style="margin: 0 0 20px 0; color: #666;">Seleziona i job da processare:</p>
+            
+            <div style="display: grid; gap: 15px; margin-bottom: 20px;">
+                ${queue.map((job, index) => `
+                    <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa;">
+                        <input type="checkbox" id="job_${index}" checked style="margin-right: 10px;">
+                        <label for="job_${index}" style="font-weight: 600;">${job.company} - ${job.role}</label>
+                        <p style="margin: 10px 0 0 25px; font-size: 13px; color: #666;">${job.description.substring(0, 150)}...</p>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <button onclick="processQueueJobs(${JSON.stringify(queue).replace(/"/g, '&quot;')})" class="primary" style="width: 100%; padding: 15px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">
+                🚀 Processa Selezionati
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function processQueueJobs(queue) {
+    const selectedJobs = queue.filter((job, index) => 
+        document.getElementById(`job_${index}`).checked
+    );
+    
+    if (selectedJobs.length === 0) {
+        alert('Seleziona almeno un job');
+        return;
+    }
+    
+    const modal = document.getElementById('queueModal');
+    if (modal) modal.remove();
+    
+    alert(`Processando ${selectedJobs.length} job. Questa feature sarà implementata nella V5!`);
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        checkFeedbackStatus();
+        loadQueueMode();
+    });
+}
