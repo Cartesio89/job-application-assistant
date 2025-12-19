@@ -295,20 +295,225 @@ if (typeof document !== 'undefined') {
 // ============================================
 // ADVANCED KEYWORD EXTRACTION (TF-IDF + Bigrams)
 // ============================================
+// ============================================
+// ADVANCED KEYWORD EXTRACTION - CLAUDE API VALIDATED
+// ============================================
+
+// STOPWORDS COMPLETE - IT + EN + HR generiche
 const stopwords = new Set([
+    // ===== ITALIANO =====
+    // Articoli
     'di', 'a', 'da', 'in', 'con', 'su', 'per', 'tra', 'fra',
     'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'una', 'uno',
-    'e', 'o', 'ma', 'se', 'che', 'chi', 'cui', 'del', 'della',
-    'the', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'at', 'with',
-    'you', 'your', 'we', 'our', 'will', 'have', 'has', 'who', 'what',
-    'are', 'is', 'was', 'were', 'been', 'being', 'can', 'could',
-    'looking', 'support', 'work', 'working', 'offer', 'role',
-    'contribute', 'tasks', 'environment', 'opportunity', 'join',
-    'years', 'experience', 'preferred', 'required'
+    'al', 'allo', 'alla', 'ai', 'agli', 'alle',
+    'dal', 'dallo', 'dalla', 'dai', 'dagli', 'dalle',
+    'nel', 'nello', 'nella', 'nei', 'negli', 'nelle',
+    'sul', 'sullo', 'sulla', 'sui', 'sugli', 'sulle',
+    'del', 'dello', 'della', 'dei', 'degli', 'delle',
+    'col', 'coi', 'con', 'sul', 'nell',
+    
+    // Preposizioni articolate comuni
+    'sull', 'dall', 'all', 'coll',
+    
+    // Congiunzioni
+    'e', 'ed', 'o', 'od', 'ma', 'però', 'perché', 'quindi', 'dunque',
+    'anche', 'inoltre', 'oppure', 'ovvero', 'cioè', 'sia',
+    
+    // Pronomi
+    'che', 'chi', 'cui', 'quale', 'quali', 'quanto', 'quanta', 'quanti', 'quante',
+    'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro',
+    'mi', 'ti', 'ci', 'vi', 'si', 'ne', 'lo', 'la', 'li', 'le',
+    'questo', 'questa', 'questi', 'queste',
+    'quello', 'quella', 'quelli', 'quelle',
+    'tale', 'tali', 'altro', 'altra', 'altri', 'altre',
+    
+    // Verbi essere/avere
+    'è', 'sono', 'sei', 'siamo', 'siete', 'era', 'erano', 'ero', 'eravamo',
+    'essere', 'stato', 'stata', 'stati', 'state', 'sia', 'siano',
+    'avere', 'ha', 'hanno', 'hai', 'ho', 'abbiamo', 'avete',
+    'aveva', 'avevano', 'avuto', 'avuta', 'avuti', 'avute',
+    
+    // Verbi modali
+    'può', 'possono', 'puoi', 'possiamo', 'potere',
+    'deve', 'devono', 'devi', 'dobbiamo', 'dovere',
+    'vuole', 'vogliono', 'vuoi', 'vogliamo', 'volere',
+    
+    // Verbi comuni
+    'fare', 'fa', 'fanno', 'fai', 'facciamo', 'fatto', 'fatta',
+    'dire', 'dice', 'dicono', 'detto', 'detta',
+    'andare', 'va', 'vanno', 'vai', 'andiamo',
+    'dare', 'dà', 'danno', 'dai', 'diamo', 'dato', 'data',
+    'stare', 'sta', 'stanno', 'stai', 'stiamo',
+    'vedere', 'vede', 'vedono', 'vedi', 'vediamo', 'visto', 'vista',
+    
+    // Avverbi
+    'non', 'più', 'molto', 'poco', 'tanto', 'troppo', 'sempre', 'mai',
+    'già', 'ancora', 'solo', 'anche', 'proprio', 'quasi', 'almeno',
+    'come', 'dove', 'quando', 'perché', 'così', 'bene', 'male',
+    
+    // ===== HR ITALIANO =====
+    // Lavoro/Offerta
+    'lavoro', 'lavori', 'lavorare', 'lavoratore', 'lavoratori',
+    'offerta', 'offerte', 'offrire', 'offriamo',
+    'posizione', 'posizioni', 'posto', 'posti',
+    'ricerca', 'ricerche', 'ricerchiamo', 'ricercando',
+    'opportunità', 'chance', 'possibilità',
+    'cerchiamo', 'stiamo', 'cercando', 'cerco', 'cerca', 'cerchi', 'cercano',
+    'assume', 'assumere', 'assunzione', 'assunzioni',
+    'selezione', 'selezioni', 'seleziona', 'selezioniamo',
+    'inserimento', 'inserire', 'inseriamo',
+    
+    // Candidati
+    'candidato', 'candidata', 'candidati', 'candidature', 'candidatura',
+    'collega', 'colleghi', 'colleghe',
+    'collaboratore', 'collaboratori', 'collaboratrice', 'collaboratrici',
+    'risorsa', 'risorse', 'figura', 'figure', 'profilo', 'profili',
+    'persona', 'persone', 'individuo', 'individui',
+    'talento', 'talenti', 'professional', 'professionista', 'professionisti',
+    'impiego', 'occupazione', 'incarico',
+    
+    // Azienda
+    'azienda', 'aziende', 'società', 'impresa', 'imprese', 'ditta',
+    'team', 'gruppo', 'squadra', 'staff',
+    'ufficio', 'sede', 'headquarter', 'headquarters',
+    'reparto', 'dipartimento', 'divisione', 'area',
+    'organizzazione', 'organico', 'struttura',
+    
+    // Aggettivi azienda
+    'ambiente', 'contesto', 'realtà', 'panorama',
+    'dinamico', 'dinamica', 'dinamici', 'dinamiche',
+    'internazionale', 'internazionali', 'globale', 'globali',
+    'giovane', 'giovani', 'stimolante', 'stimolanti',
+    'innovativo', 'innovativa', 'innovativi', 'innovative',
+    'importante', 'rilevante', 'leader', 'primario', 'primaria',
+    'strutturato', 'strutturata', 'solido', 'solida',
+    'crescita', 'espansione', 'sviluppo',
+    
+    // Settore/Mercato
+    'settore', 'settori', 'mercato', 'mercati', 'industria', 'industrie',
+    'clienti', 'cliente', 'partner', 'fornitori', 'fornitore',
+    'business', 'attività', 'operazioni', 'servizi', 'servizio',
+    
+    // Verbi HR
+    'vuoi', 'vuole', 'vogliamo', 'vogliono', 'volere',
+    'desidera', 'desiderano', 'desideri', 'desideriamo', 'desiderare',
+    'interessato', 'interessata', 'interessati', 'interessate',
+    'unire', 'unirti', 'unirsi', 'entrare', 'entri',
+    'lavorare', 'lavorando', 'occupare', 'occuparsi',
+    'svolgere', 'svolge', 'svolgono', 'svolgimento',
+    'gestire', 'gestisce', 'gestiscono', 'gestione',
+    'seguire', 'segue', 'seguono', 'supportare', 'supporto',
+    'contribuire', 'contribuisce', 'contribuiscono', 'contributo',
+    'coordinare', 'coordina', 'coordinamento',
+    'sviluppare', 'sviluppa', 'sviluppano',
+    
+    // Requisiti generici
+    'competenza', 'competenze', 'skill', 'skills',
+    'esclusivit', 'esclusivo', 'esclusiva', 'esclusivi', 'esclusive',
+    'requisito', 'requisiti', 'requirement', 'requirements',
+    'necessario', 'necessari', 'necessaria', 'necessarie',
+    'richiesto', 'richiesti', 'richiesta', 'richieste',
+    'esperienza', 'esperienze', 'conoscenza', 'conoscenze',
+    'capacità', 'abilità', 'attitudine', 'attitudini',
+    'qualifica', 'qualifiche', 'titolo', 'titoli',
+    'diploma', 'laurea', 'master', 'certificazione', 'certificazioni',
+    
+    // Descrittivi generici
+    'ottimo', 'ottima', 'ottimi', 'ottime', 'eccellente', 'eccellenti',
+    'buono', 'buona', 'buoni', 'buone', 'valido', 'valida',
+    'preferibile', 'preferibili', 'gradita', 'gradito', 'gradite',
+    'apprezzata', 'apprezzato', 'apprezzate', 'completano', 'completa',
+    'ideale', 'perfetto', 'perfetta', 'adatto', 'adatta',
+    
+    // Benefit/Offerta
+    'offriamo', 'garantiamo', 'assicuriamo', 'prevediamo',
+    'contratto', 'contrattuale', 'retribuzione', 'stipendio',
+    'benefit', 'welfare', 'ticket', 'buoni', 'premio',
+    'formazione', 'training', 'corso', 'corsi',
+    
+    // ===== ENGLISH =====
+    // Articles
+    'the', 'a', 'an',
+    
+    // Prepositions
+    'of', 'to', 'in', 'for', 'on', 'at', 'with', 'by', 'from', 'about',
+    'into', 'through', 'during', 'before', 'after', 'above', 'below',
+    'between', 'under', 'over',
+    
+    // Conjunctions
+    'and', 'or', 'but', 'so', 'yet', 'nor', 'as', 'if', 'than', 'that',
+    'because', 'since', 'unless', 'while', 'where', 'when',
+    
+    // Pronouns
+    'you', 'your', 'we', 'our', 'they', 'their', 'it', 'its',
+    'he', 'she', 'him', 'her', 'us', 'them', 'this', 'that',
+    'these', 'those', 'who', 'what', 'which', 'whom', 'whose',
+    
+    // Verbs be/have
+    'are', 'is', 'was', 'were', 'been', 'being', 'be',
+    'have', 'has', 'had', 'having',
+    
+    // Modals
+    'can', 'could', 'may', 'might', 'must', 'should', 'would', 'will',
+    
+    // Common verbs
+    'do', 'does', 'did', 'doing', 'done',
+    'make', 'makes', 'made', 'making',
+    'get', 'gets', 'got', 'getting',
+    'go', 'goes', 'went', 'going', 'gone',
+    'come', 'comes', 'came', 'coming',
+    'take', 'takes', 'took', 'taking', 'taken',
+    'see', 'sees', 'saw', 'seeing', 'seen',
+    'know', 'knows', 'knew', 'knowing', 'known',
+    'think', 'thinks', 'thought', 'thinking',
+    'want', 'wants', 'wanted', 'wanting',
+    'use', 'uses', 'used', 'using',
+    
+    // Adverbs
+    'not', 'no', 'yes', 'very', 'too', 'also', 'just', 'only',
+    'even', 'well', 'back', 'more', 'most', 'all', 'some', 'any',
+    'both', 'each', 'every', 'such', 'other', 'another',
+    'how', 'now', 'then', 'here', 'there',
+    
+    // ===== HR ENGLISH =====
+    // Job/Position
+    'job', 'jobs', 'position', 'positions', 'role', 'roles',
+    'work', 'working', 'worker', 'workers',
+    'offer', 'offering', 'opportunity', 'opportunities',
+    'looking', 'seeking', 'search', 'searching',
+    'hire', 'hiring', 'recruit', 'recruiting', 'recruitment',
+    'employment', 'vacancy', 'vacancies', 'opening', 'openings',
+    
+    // Candidates
+    'candidate', 'candidates', 'applicant', 'applicants',
+    'colleague', 'colleagues', 'team', 'member', 'members',
+    'professional', 'professionals', 'talent', 'talents',
+    'individual', 'individuals', 'person', 'people',
+    
+    // Company
+    'company', 'companies', 'firm', 'organization', 'business',
+    'group', 'office', 'department', 'division',
+    'environment', 'culture', 'workplace',
+    
+    // Adjectives
+    'dynamic', 'international', 'global', 'innovative',
+    'leading', 'major', 'growing', 'established',
+    'successful', 'reputable', 'prestigious',
+    
+    // Verbs HR
+    'support', 'contribute', 'tasks', 'join', 'offer',
+    'manage', 'lead', 'develop', 'coordinate',
+    'ensure', 'provide', 'deliver', 'achieve',
+    
+    // Requirements
+    'years', 'experience', 'preferred', 'required', 'must',
+    'skills', 'knowledge', 'ability', 'abilities',
+    'qualification', 'qualifications', 'degree', 'education',
+    'excellent', 'strong', 'good', 'proven', 'solid'
 ]);
 
 function extractBigrams(text) {
-    const words = text.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+    const words = text.toLowerCase().match(/\b[a-zàèéìòù]{3,}\b/g) || [];
     const bigrams = [];
     
     for (let i = 0; i < words.length - 1; i++) {
@@ -324,7 +529,7 @@ function calculateTFIDF(term, text, allTexts = [text]) {
     const termLower = term.toLowerCase();
     const textLower = text.toLowerCase();
     
-    const termCount = (textLower.match(new RegExp(`\\b${termLower}\\b`, 'g')) || []).length;
+    const termCount = (textLower.match(new RegExp(`\\b${termLower.replace(/\s+/g, '\\s+')}\\b`, 'g')) || []).length;
     const totalWords = textLower.split(/\s+/).length;
     const tf = termCount / totalWords;
     
@@ -338,48 +543,233 @@ function calculateTFIDF(term, text, allTexts = [text]) {
 
 function getDomainBoost(term) {
     const boostMap = {
-        'digital marketing': 2.0,
-        'media planning': 2.0,
-        'product management': 2.0,
-        'data analysis': 2.0,
-        'performance marketing': 2.0,
-        'campaign optimization': 1.8,
-        'budget management': 1.8,
-        'stakeholder management': 1.8,
-        'google analytics': 1.6,
-        'power bi': 1.6,
-        'meta ads': 1.6,
-        'marketing': 1.3,
-        'strategy': 1.3,
-        'analysis': 1.3
+        // Marketing/Digital
+        'digital marketing': 2.5,
+        'media planning': 2.5,
+        'performance marketing': 2.5,
+        'social media': 2.0,
+        'content marketing': 2.0,
+        'email marketing': 2.0,
+        'seo': 2.0,
+        'sem': 2.0,
+        'campaign optimization': 2.0,
+        'budget management': 2.0,
+        
+        // Product/Tech
+        'product management': 2.5,
+        'agile': 2.0,
+        'scrum': 2.0,
+        'roadmap': 2.0,
+        'user story': 2.0,
+        
+        // Analytics/Data
+        'data analysis': 2.5,
+        'data analytics': 2.5,
+        'business intelligence': 2.0,
+        'kpi': 2.0,
+        'dashboard': 2.0,
+        
+        // Tools specifici
+        'google analytics': 2.0,
+        'power bi': 2.0,
+        'tableau': 2.0,
+        'meta ads': 2.0,
+        'google ads': 2.0,
+        'facebook ads': 2.0,
+        'tiktok': 1.8,
+        'linkedin ads': 1.8,
+        'programmatic': 1.8,
+        'dv360': 1.8,
+        'tag manager': 1.8,
+        'looker studio': 1.8,
+        'excel': 1.6,
+        'powerpoint': 1.6,
+        'photoshop': 1.8,
+        'illustrator': 1.8,
+        'figma': 1.8,
+        'canva': 1.6,
+        'jira': 1.6,
+        'asana': 1.6,
+        
+        // Skills generiche (boost minore)
+        'marketing': 1.5,
+        'strategy': 1.5,
+        'analysis': 1.5,
+        'management': 1.5,
+        'planning': 1.5
     };
     
     return boostMap[term.toLowerCase()] || 1.0;
 }
 
-function extractKeywordsAdvanced(jdText, topN = 15) {
-    const unigrams = jdText.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+// FILTRO POST-EXTRACTION intelligente
+function filterIrrelevantKeywords(keywords) {
+    const irrelevantPatterns = [
+        // Preposizioni articolate residue
+        /^(sull|dell|nell|all|coll)\s/i,
+        
+        // HR generiche
+        /\b(offerta|lavoro|job|posizione|ricerca)\b/i,
+        /\b(azienda|società|team|gruppo|ufficio)\b/i,
+        /\b(cerchi|cerca|cerchiamo|ricerca|stiamo)\b/i,
+        /\b(vuoi|vuole|desidera|interessato)\b/i,
+        /\b(candidato|candidata|figura|risorsa)\b/i,
+        
+        // Descrittivi generici
+        /\b(ambiente|dinamico|internazionale|giovane)\b/i,
+        /\b(importante|leader|settore|mercato)\b/i,
+        /\b(ottimo|buono|eccellente|preferibile)\b/i,
+        
+        // Verbi generici
+        /\b(lavorare|occupare|svolgere|gestire|seguire)\b/i,
+        /\b(unire|entrare|contribuire|supportare)\b/i,
+        
+        // Requisiti generici
+        /\b(competenza|esperienza|conoscenza|capacità)\b/i,
+        /\b(requisito|necessario|richiesto)\b/i,
+        
+        // English HR
+        /\b(looking|support|work|offer|role)\b/i,
+        /\b(opportunity|join|contribute|tasks)\b/i,
+        /\b(candidate|position|hiring|seeking)\b/i,
+        /\b(years|experience|preferred|required)\b/i,
+        
+        // Pattern contratti/benefit
+        /\b(contratto|retribuzione|benefit|welfare)\b/i,
+        /\b(formazione|training|corso)\b/i,
+        
+        // Pattern location
+        /\b(sede|ufficio|zona|area|città)\b/i
+    ];
+    
+    return keywords.filter(kw => {
+        const word = kw.word.toLowerCase();
+        
+        // Escludi se match irrelevant patterns
+        if (irrelevantPatterns.some(pattern => pattern.test(word))) {
+            return false;
+        }
+        
+        // Escludi se troppo corta E non acronimo
+        if (word.length < 3) {
+            return false;
+        }
+        
+        if (word.length === 3 && !/^[A-Z]{3}$/.test(kw.word)) {
+            return false;
+        }
+        
+        // Escludi se solo numeri
+        if (/^\d+$/.test(word)) {
+            return false;
+        }
+        
+        // Mantieni se:
+        // - Bigram (contiene spazio)
+        // - Score alto
+        // - Count >= 2
+        // - Tool/tecnico (boost > 1.5)
+        if (word.includes(' ')) return true;
+        if (kw.score > 1.0) return true;
+        if (kw.count >= 3) return true;
+        if (getDomainBoost(word) >= 1.8) return true;
+        
+        return false;
+    });
+}
+
+// CLAUDE API VALIDATION - Real-time intelligent filtering
+async function validateKeywordsWithClaude(keywords, jdText) {
+    try {
+        const keywordList = keywords.map(k => k.word).join(', ');
+        
+        const prompt = `Analizza questa job description e filtra solo le keyword TECNICHE, SPECIFICHE e RILEVANTI per il ruolo.
+
+ESCLUDI assolutamente:
+- Parole generiche HR (lavoro, offerta, posizione, candidato, azienda, team, etc)
+- Aggettivi generici (dinamico, importante, ottimo, giovane, etc)
+- Verbi generici (cerchiamo, offriamo, gestiamo, etc)
+- Requisiti generici (esperienza, competenza, capacità, etc)
+
+INCLUDI solo:
+- Tool/software specifici (es: Power BI, Google Analytics, Figma, etc)
+- Competenze tecniche specifiche (es: Media Planning, SEO, Agile, etc)
+- Tecnologie/piattaforme (es: Meta Ads, Programmatic, AWS, etc)
+- Industry terms specifici (es: Automotive, Fashion, Pharma, etc)
+- Acronimi tecnici (es: KPI, ROI, CPA, CPM, etc)
+
+JD (primi 600 char):
+${jdText.substring(0, 600)}...
+
+Keywords estratte:
+${keywordList}
+
+Rispondi SOLO con lista keyword valide separate da virgola, NIENTE altro testo.`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 500,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn('Claude API validation failed, using local filter');
+            return keywords;
+        }
+        
+        const data = await response.json();
+        const validKeywordsText = data.content[0].text.trim();
+        const validKeywords = validKeywordsText.split(',').map(k => k.trim().toLowerCase());
+        
+        // Filter original keywords keeping only validated ones
+        const filtered = keywords.filter(kw => 
+            validKeywords.some(vk => 
+                kw.word.toLowerCase() === vk || 
+                kw.word.toLowerCase().includes(vk) ||
+                vk.includes(kw.word.toLowerCase())
+            )
+        );
+        
+        return filtered.length > 0 ? filtered : keywords.slice(0, 8);
+        
+    } catch (error) {
+        console.error('Claude validation error:', error);
+        return keywords;
+    }
+}
+
+async function extractKeywordsAdvanced(jdText, topN = 15) {
+    const unigrams = jdText.toLowerCase().match(/\b[a-zàèéìòù]{4,}\b/g) || [];
     const bigrams = extractBigrams(jdText);
     
     const allTerms = [...new Set([...unigrams, ...bigrams])].filter(term => 
-        !stopwords.has(term)
+        !stopwords.has(term.toLowerCase())
     );
     
     const scored = allTerms.map(term => ({
         word: term,
         score: calculateTFIDF(term, jdText) * getDomainBoost(term),
-        count: (jdText.toLowerCase().match(new RegExp(`\\b${term}\\b`, 'g')) || []).length
+        count: (jdText.toLowerCase().match(new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'g')) || []).length
     }));
     
-    const filtered = scored.filter(item => 
-        item.count >= 2 || item.word.includes(' ')
-    );
+    // Prima filtrata locale
+    const localFiltered = filterIrrelevantKeywords(scored);
     
-    return filtered
+    const sorted = localFiltered
         .sort((a, b) => b.score - a.score)
-        .slice(0, topN);
+        .slice(0, Math.min(topN * 2, 30));
+    
+    // Claude API validation (async)
+    const claudeValidated = await validateKeywordsWithClaude(sorted, jdText);
+    
+    return claudeValidated.slice(0, topN);
 }
-
 // ============================================
 // INDUSTRY DETECTION
 // ============================================
