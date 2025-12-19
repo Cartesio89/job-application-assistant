@@ -1,129 +1,163 @@
-# Job Application Assistant - Enhanced Version
+# Job Application Assistant - Chrome Extension
 
-Sistema automatico per generare cover letter e CV ottimizzati per ATS con due modalità operative.
+Estrai job posting da LinkedIn/Indeed/Glassdoor con 1 click.
 
-## 🎯 DUE MODALITÀ
+## 🚀 INSTALLAZIONE
 
-### 1. **Il Mio Profilo (Martino)**
-Sezione personale basata sul CV di Martino Cicerani.
+### 1. Download Extension
 
-**Output:**
-- ✅ Cover letter COMPLETA personalizzata
-- ✅ About Me COMPLETO ottimizzato
-- ✅ ATS Score preciso
-- ✅ Suggerimenti specifici
-- ✅ Download DOCX
+Scarica questi file in una cartella locale:
+- manifest.json
+- content.js
+- popup.html
+- popup.js
+- icons/ (cartella con icone)
 
-### 2. **Analizza CV Generico**
-Analisi per qualsiasi CV caricato (PDF/DOCX).
+### 2. Installa in Chrome
 
-**Output:**
-- ✅ Suggerimenti tattici
-- ✅ Bozza About Me da personalizzare
-- ✅ Gap analysis
-- ✅ ATS Score
-- ⚠️ NON genera cover letter completa
+1. Apri Chrome
+2. Vai a `chrome://extensions/`
+3. Attiva **Developer mode** (toggle in alto a destra)
+4. Click **Load unpacked**
+5. Seleziona la cartella con i file extension
+6. Extension installata! ✅
 
-## 🚀 Deploy su Netlify
+### 3. Pin Extension
 
-### Metodo 1: Drag & Drop
-1. Vai su https://app.netlify.com/drop
-2. Trascina cartella con i 3 file
-3. Deploy automatico in 30 secondi
+- Click icona puzzle (Extensions) nella toolbar
+- Trova "Job Application Assistant Extractor"
+- Click pin 📌
 
-### Metodo 2: GitHub
-1. Push file su GitHub
-2. Netlify → "Import from Git"
-3. Deploy automatico ad ogni commit
+---
 
-## 📁 File Necessari
+## 📋 USO
 
-```
-├── index.html    # UI con 2 tab
-├── app.js        # Engine completo
-└── README.md     # Documentazione
-```
+### Extract Job Posting
 
-## ✨ Features Chiave
+**Su LinkedIn:**
+1. Apri job posting su LinkedIn
+2. Click icona extension
+3. Click "🔍 Extract Job Posting"
+4. Dati salvati in queue ✅
 
-**Keyword Filtering Avanzato:**
-- Stopwords espanse (100+ termini filtrati)
-- Word boundaries per matching accurato
-- Minimo 4 lettere per keyword significative
+**Su Indeed/Glassdoor:**
+- Stesso processo
 
-**Tool Detection Migliorato:**
-- Pattern matching con regex avanzate
-- Rilevamento Excel/PowerPoint affidabile
-- Supporto tool marketing/analytics/design
+### View Queue
 
-**Analisi Intelligente:**
-- Focus automatico (media/product/creative)
-- Suggerimenti context-aware
-- ATS scoring preciso
+1. Click icona extension
+2. Click "📂 View Queue (N)"
+3. Si apre tool con tutti job estratti
+4. Seleziona quali analizzare
+5. Genera documenti
 
-## 🎯 Caso d'Uso
+### Clear Queue
 
-**Scenario 1 - Martino:**
-1. Tab "Il Mio Profilo"
-2. Incolla JD
-3. Click "Genera"
-4. Download documenti completi
+- Click "🗑️ Clear Queue" per svuotare
 
-**Scenario 2 - CV Generico:**
-1. Tab "Analizza CV Generico"
-2. Upload CV (PDF/DOCX)
-3. Verifica preview
-4. Incolla JD
-5. Ricevi suggerimenti
+---
 
-## 🔧 Personalizzazione Profilo
+## ⚙️ CONFIGURAZIONE
 
-Edita `app.js` → `martinoProfile`:
+### Update Tool URL
+
+**File:** `popup.js` (riga ~50)
 
 ```javascript
-const martinoProfile = {
-    name: "Tuo Nome",
-    email: "tua@email.com",
-    yearsExp: 8,
-    coreSkills: [...],
-    // etc...
-};
+const toolUrl = `https://your-tool.netlify.app/?mode=queue&data=...`;
 ```
 
-## ⚠️ Limitazioni PDF Parsing
+**Sostituisci con:**
+```javascript
+const toolUrl = `https://[tuo-sito].netlify.app/?mode=queue&data=...`;
+```
 
-**Funziona bene:** PDF text-based, layout semplice
-**Problemi:** CV grafici, scansioni, layout complessi
+---
 
-**Soluzione:** Preview sempre visibile per verifica
+## 🎯 SHORTCUT KEYBOARD
 
-## 📊 Miglioramenti V2
+- **Ctrl/Cmd + E** = Extract job
+- **Ctrl/Cmd + Q** = View queue
 
-- ✅ Stopwords espanse (you, have, will, etc.)
-- ✅ Tool detection con word boundaries
-- ✅ Keyword minimo 4 lettere
-- ✅ Pattern matching avanzato
-- ✅ Focus detection migliorato
-- ✅ Suggerimenti più specifici
+---
 
-## 💡 Tips
+## 🐛 TROUBLESHOOTING
 
-- Verifica sempre testo estratto da PDF
-- Personalizza bozze generate
-- Usa Tab Martino per candidature reali
-- Tab Generico per quick check
+### Extension non estrae
 
-## 🐛 Troubleshooting
+**Check:**
+1. Sei su pagina job posting (non lista)?
+2. Extension ha permission per sito?
+3. Developer mode ON?
 
-**Q: Keyword irrilevanti (you, will, etc.)?**
-A: FIXED - Stopwords ora filtrano questi termini
+**Fix:**
+- Reload pagina (F5)
+- Re-click Extract
+- Check console errors (F12)
 
-**Q: Excel non rilevato?**
-A: FIXED - Word boundaries ora catturano Excel correttamente
+### Icone mancanti
 
-**Q: Score troppo basso?**
-A: Keyword filtering migliorato, score ora più accurato
+**Fix:**
+Crea file PNG 16x16, 48x48, 128x128 con icona app
+O usa placeholder:
+```
+icons/
+  icon16.png
+  icon48.png  
+  icon128.png
+```
 
-## 📝 Licenza
+### Queue non si apre
 
-© 2025 Martino Cicerani - Uso personale
+**Check:**
+- Tool URL configurata correttamente in popup.js?
+- Tool deployato e funzionante?
+
+---
+
+## 📊 SUPPORTO SITI
+
+✅ **LinkedIn Jobs**
+- linkedin.com/jobs/*
+
+✅ **Indeed**
+- indeed.com/viewjob*
+
+✅ **Glassdoor**
+- glassdoor.com/job-listing/*
+
+---
+
+## 🔄 UPDATE EXTENSION
+
+1. Modifica file
+2. Vai a `chrome://extensions/`
+3. Click reload icon su extension
+4. Done
+
+---
+
+## 🎨 ICONS
+
+### Crea Icone
+
+Usa tool online (es: favicon.io) per generare:
+- 16x16 px
+- 48x48 px
+- 128x128 px
+
+**Colore:** Gradient #667eea → #764ba2
+
+---
+
+## 📝 CHANGELOG
+
+**v1.0.0**
+- Extract da LinkedIn/Indeed/Glassdoor
+- Queue management
+- Keyboard shortcuts
+- Visual indicator
+
+---
+
+© 2024 Martino Cicerani
