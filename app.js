@@ -1361,30 +1361,15 @@ function switchCoverLetterVariant() {
 }
 
 // ============================================
-// EMAIL PREVIEW & SEND
+// EMAIL PREVIEW & SEND (MAILTO VERSION)
 // ============================================
 async function previewEmail(analysisId, company, role) {
     const recipientEmail = document.getElementById('recipientEmail').value.trim();
     const coverLetter = document.getElementById('editableCoverLetter').value.trim();
-    const cvFile = document.getElementById('cvFile').files[0];
-    const portfolioFile = document.getElementById('portfolioFile').files[0];
-    const extraFile = document.getElementById('extraFile').files[0];
     
-    if (!recipientEmail || !coverLetter || !cvFile) {
-        alert('⚠️ Campi obbligatori: Email destinatario e CV');
+    if (!recipientEmail || !coverLetter) {
+        alert('⚠️ Campi obbligatori: Email destinatario e Cover Letter');
         return;
-    }
-    
-    const attachments = [
-        { name: cvFile.name, size: formatFileSize(cvFile.size) }
-    ];
-    
-    if (portfolioFile) {
-        attachments.push({ name: portfolioFile.name, size: formatFileSize(portfolioFile.size) });
-    }
-    
-    if (extraFile) {
-        attachments.push({ name: extraFile.name, size: formatFileSize(extraFile.size) });
     }
     
     const modal = document.createElement('div');
@@ -1395,14 +1380,20 @@ async function previewEmail(analysisId, company, role) {
             <button onclick="document.getElementById('emailPreviewModal').remove()" 
                     style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
             
-            <h2 style="margin: 0 0 20px 0;">📧 Preview Email</h2><div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="margin: 5px 0;"><strong>Da:</strong> martino.cicerani@gmail.com</p>
+            <h2 style="margin: 0 0 20px 0;">📧 Preview Email</h2>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+                <p style="margin: 0; font-size: 13px;">
+                    <strong>💡 Si aprirà Gmail con email pre-compilata.</strong><br>
+                    Dovrai allegare manualmente: CV, Portfolio (se necessario).
+                </p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 5px 0;"><strong>Da:</strong> martino.cicerani@gmail.com (Gmail nativo)</p>
                 <p style="margin: 5px 0;"><strong>A:</strong> ${recipientEmail}</p>
                 <p style="margin: 5px 0;"><strong>Oggetto:</strong> Candidatura ${role} - Martino Cicerani</p>
-                <p style="margin: 5px 0;"><strong>Allegati (${attachments.length}):</strong></p>
-                <ul style="margin: 5px 0; padding-left: 20px;">
-                    ${attachments.map(att => `<li>📎 ${att.name} (${att.size})</li>`).join('')}
-                </ul>
+                <p style="margin: 5px 0;"><strong>Allegati:</strong> Da aggiungere manualmente in Gmail</p>
             </div>
             
             <div style="border: 2px solid #ddd; padding: 20px; border-radius: 8px; background: white; max-height: 400px; overflow-y: auto;">
@@ -1413,7 +1404,7 @@ async function previewEmail(analysisId, company, role) {
                 <button onclick="approveAndSendEmail(${analysisId})" 
                         class="primary" 
                         style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px;">
-                    ✅ Approva & Invia
+                    📧 Apri in Gmail
                 </button>
                 <button onclick="document.getElementById('emailPreviewModal').remove()" 
                         class="secondary" 
@@ -1423,7 +1414,7 @@ async function previewEmail(analysisId, company, role) {
             </div>
             
             <p style="font-size: 12px; color: #666; margin-top: 15px; text-align: center;">
-                ⚠️ Verifica attentamente email destinatario e allegati prima di inviare
+                📊 Installa <a href="https://mailtrack.io" target="_blank">Mailtrack</a> per tracking aperture gratis
             </p>
         </div>
     `;
@@ -1434,33 +1425,27 @@ async function previewEmail(analysisId, company, role) {
 async function approveAndSendEmail(analysisId) {
     const recipientEmail = document.getElementById('recipientEmail').value.trim();
     const coverLetter = document.getElementById('editableCoverLetter').value.trim();
-    const cvFile = document.getElementById('cvFile').files[0];
-    const portfolioFile = document.getElementById('portfolioFile').files[0];
-    const extraFile = document.getElementById('extraFile').files[0];
     
     document.getElementById('emailPreviewModal').remove();
-    
-    const loadingModal = showLoadingModal('Invio email in corso...');
     
     try {
         const result = await sendApplicationEmail({
             analysisId,
             recipientEmail,
             coverLetter,
-            role: window.currentRole,
-            cvFile,
-            portfolioFile,
-            extraFile
+            role: window.currentRole
         });
-        
-        loadingModal.remove();
         
         if (result.success) {
             showSuccessModal(`
-                ✅ Email inviata con successo!
+                ✅ Gmail aperto con email pre-compilata!
                 
-                Destinatario: ${recipientEmail}
-                Allegati: ${cvFile.name}${portfolioFile ? ', ' + portfolioFile.name : ''}${extraFile ? ', ' + extraFile.name : ''}
+                Prossimi step:
+                1. Allega CV manualmente
+                2. Allega Portfolio (se necessario)
+                3. Verifica email e invia
+                
+                💡 Se hai Mailtrack installato, riceverai notifica quando l'email viene aperta.
                 
                 📊 Ricordati di aggiornare il risultato entro 15 giorni.
             `);
@@ -1469,8 +1454,7 @@ async function approveAndSendEmail(analysisId) {
         }
         
     } catch (error) {
-        loadingModal.remove();
-        alert('❌ Errore invio email: ' + error.message + '\n\nVerifica:\n- SendGrid configurato su Netlify\n- Email destinatario valida\n- Allegati < 10MB');
+        alert('❌ Errore apertura Gmail: ' + error.message);
         console.error(error);
     }
 }
