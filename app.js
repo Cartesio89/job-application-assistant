@@ -696,7 +696,8 @@ function getCompetitivenessLevel(score) {
     if (score >= 70) return { level: 'COMPETITIVE', color: '#667eea', icon: '✅' };
     if (score >= 55) return { level: 'MODERATE', color: '#ffa500', icon: '⚠️' };
     return { level: 'WEAK', color: '#d32f2f', icon: '❌' };
-}// ============================================
+}
+// ============================================
 // COVER LETTER VARIANTS (A/B Testing)
 // ============================================
 function generateCoverLetterVariants(jdText, company, role, location, profile, industry) {
