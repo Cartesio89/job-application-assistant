@@ -833,75 +833,23 @@ ${profile.email} | ${profile.phone}`;
 // EMAIL SYSTEM - Send Application
 // ============================================
 async function sendApplicationEmail(emailData) {
-    try {
-        // Convert files to base64
-        const cvBase64 = await fileToBase64(emailData.cvFile);
-        const portfolioBase64 = emailData.portfolioFile ? await fileToBase64(emailData.portfolioFile) : null;
-        const extraBase64 = emailData.extraFile ? await fileToBase64(emailData.extraFile) : null;
-        
-        const attachments = [
-            {
-                content: cvBase64,
-                filename: emailData.cvFile.name,
-                type: emailData.cvFile.type,
-                disposition: 'attachment'
-            }
-        ];
-        
-        if (portfolioBase64) {
-            attachments.push({
-                content: portfolioBase64,
-                filename: emailData.portfolioFile.name,
-                type: emailData.portfolioFile.type,
-                disposition: 'attachment'
-            });
-        }
-        
-        if (extraBase64) {
-            attachments.push({
-                content: extraBase64,
-                filename: emailData.extraFile.name,
-                type: emailData.extraFile.type,
-                disposition: 'attachment'
-            });
-        }
-        
-        // Call Netlify Function
-        const response = await fetch('/.netlify/functions/send-email', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                to: emailData.recipientEmail,
-                from: 'martino.cicerani@gmail.com',
-                subject: `Candidatura ${emailData.role} - Martino Cicerani`,
-                body: emailData.coverLetter,
-                attachments: attachments
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        // Mark as sent in storage
-        StorageManager.markAsSent(emailData.analysisId, {
-            recipientEmail: emailData.recipientEmail,
-            attachments: attachments.map(a => a.filename),
-            sentAt: new Date().toISOString()
-        });
-        
-        return { success: true, result };
-        
-    } catch (error) {
-        console.error('Email send error:', error);
-        return { success: false, error: error.message };
-    }
+    // Mailto link - opens Gmail with pre-filled content
+    const subject = encodeURIComponent(`Candidatura ${emailData.role} - Martino Cicerani`);
+    const body = encodeURIComponent(emailData.coverLetter);
+    const mailto = `mailto:${emailData.recipientEmail}?subject=${subject}&body=${body}`;
+    
+    // Open Gmail
+    window.open(mailto, '_blank');
+    
+    // Mark as sent in storage
+    StorageManager.markAsSent(emailData.analysisId, {
+        recipientEmail: emailData.recipientEmail,
+        attachments: ['CV e Portfolio da allegare manualmente'],
+        sentAt: new Date().toISOString()
+    });
+    
+    return { success: true };
 }
-
 // Helper: File to Base64
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
