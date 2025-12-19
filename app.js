@@ -647,7 +647,7 @@ function generateCompetitiveAnalysis(cvProfile, jdRequirements) {
     // Tools Coverage
     if (jdRequirements.tools && jdRequirements.tools.length > 0) {
         const matchedTools = jdRequirements.tools.filter(tool =>
-            cvProfile.skills.some(skill =>
+            cvProfile.coreSkills.some(skill =>
                 skill.toLowerCase().includes(tool.name.toLowerCase()) ||
                 tool.name.toLowerCase().includes(skill.toLowerCase())
             )
