@@ -563,51 +563,34 @@ function filterIrrelevantKeywords(keywords) {
 
 async function validateKeywordsWithClaude(keywords, jdText) {
     try {
-        const keywordList = keywords.map(k => k.word).join(', ');
+        console.log('🔍 Calling Claude API via Netlify function...');
         
-        const prompt = `Analizza questa job description e filtra solo le keyword TECNICHE, SPECIFICHE e RILEVANTI per il ruolo.
-
-ESCLUDI assolutamente:
-- Parole generiche HR (lavoro, offerta, posizione, candidato, azienda, team, etc)
-- Aggettivi generici (dinamico, importante, ottimo, giovane, etc)
-- Verbi generici (cerchiamo, offriamo, gestiamo, etc)
-- Requisiti generici (esperienza, competenza, capacità, etc)
-
-INCLUDI solo:
-- Tool/software specifici (es: Power BI, Google Analytics, Figma, etc)
-- Competenze tecniche specifiche (es: Media Planning, SEO, Agile, etc)
-- Tecnologie/piattaforme (es: Meta Ads, Programmatic, AWS, etc)
-- Industry terms specifici (es: Automotive, Fashion, Pharma, etc)
-- Acronimi tecnici (es: KPI, ROI, CPA, CPM, etc)
-
-JD (primi 600 char):
-${jdText.substring(0, 600)}...
-
-Keywords estratte:
-${keywordList}
-
-Rispondi SOLO con lista keyword valide separate da virgola, NIENTE altro testo.`;
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
+        const response = await fetch('/.netlify/functions/validate-keywords', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 500,
-                messages: [{ role: 'user', content: prompt }]
+                keywords: keywords,
+                jdText: jdText
             })
         });
         
         if (!response.ok) {
-            console.warn('Claude API validation failed, using local filter');
+            console.warn('❌ Netlify function failed, using local filter');
             return keywords;
         }
         
         const data = await response.json();
-        const validKeywordsText = data.content[0].text.trim();
-        const validKeywords = validKeywordsText.split(',').map(k => k.trim().toLowerCase());
+        
+        if (data.fallback) {
+            console.warn('⚠️ Claude API fallback mode:', data.error);
+            return keywords;
+        }
+        
+        console.log(`✅ Claude validated: ${data.validatedCount}/${data.originalCount} keywords`);
+        
+        const validKeywords = data.validKeywords;
         
         const filtered = keywords.filter(kw => 
             validKeywords.some(vk => 
@@ -617,10 +600,15 @@ Rispondi SOLO con lista keyword valide separate da virgola, NIENTE altro testo.`
             )
         );
         
+        if (filtered.length < 5 && keywords.length >= 5) {
+            console.warn('⚠️ Too few validated keywords, using top scored instead');
+            return keywords.slice(0, Math.min(12, keywords.length));
+        }
+        
         return filtered.length > 0 ? filtered : keywords.slice(0, 8);
         
     } catch (error) {
-        console.error('Claude validation error:', error);
+        console.error('❌ Keyword validation error:', error);
         return keywords;
     }
 }
