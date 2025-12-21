@@ -1862,7 +1862,9 @@ function displayResultsMartino(results, analysisId) {
         </div>
     `;
     
-    document.getElementById('resultsMartino').innerHTML = resultsHTML;
+    const resultsDiv = document.getElementById('resultsMartino');
+    resultsDiv.innerHTML = resultsHTML;
+    resultsDiv.style.display = 'block';
     
     document.getElementById('previewEmailBtn').addEventListener('click', () => {
         previewEmail(analysisId);
