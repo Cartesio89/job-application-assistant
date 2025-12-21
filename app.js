@@ -870,6 +870,224 @@ Generate ONLY the cover letter text, no additional commentary.`;
     }
 }
 // ============================================
+// AI-GENERATED ABOUT ME
+// ============================================
+async function generateAboutMeWithAI(jdText, profile) {
+    try {
+        console.log('🤖 Generating AI About Me via Netlify function...');
+        
+        const prompt = `You are an expert career consultant. Generate a professional "About Me" section for a CV in English.
+
+CANDIDATE PROFILE:
+- Name: ${profile.name}
+- Current Role: ${profile.currentRole} at ${profile.company}
+- Years of Experience: ${profile.yearsExp}
+- Core Skills: ${profile.coreSkills.join(', ')}
+- Brands Managed: ${profile.brandsManaged.join(', ')}
+- Industries: ${profile.industries.join(', ')}
+${profile.aiCertifications ? `- AI Certifications: ${profile.aiCertifications.join(', ')}` : ''}
+
+TARGET JOB DESCRIPTION (first 1000 chars):
+${jdText.substring(0, 1000)}
+
+REQUIREMENTS:
+1. Length: 60-80 words EXACTLY
+2. Professional tone, suitable for CV
+3. Start with role title and years of experience
+4. Mention 2-3 most relevant skills from candidate's profile that match JD requirements
+5. Include brands managed (${profile.brandsManaged.slice(0, 3).join(', ')})
+6. Reference tools/platforms ONLY if candidate has them AND JD mentions them
+7. If JD emphasizes specific areas (CRM, retention, segmentation, etc.) and candidate has related skills, highlight those
+8. End with differentiator (AI skills if relevant to JD, or data-driven approach)
+9. Write in THIRD PERSON
+10. Be SPECIFIC and TRUTHFUL - don't invent skills
+
+Generate ONLY the About Me text, no additional commentary.`;
+
+        const response = await fetch('/.netlify/functions/validate-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: prompt,
+                maxTokens: 200
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ AI About Me generation failed, using local fallback');
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.coverLetter && data.coverLetter.length > 50) {
+            console.log('✅ AI About Me generated successfully');
+            return data.coverLetter;
+        }
+        
+        console.warn('⚠️ AI About Me invalid, using local fallback');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ AI About Me error:', error);
+        return null;
+    }
+}
+
+// ============================================
+// AI-GENERATED CV SUGGESTIONS
+// ============================================
+async function generateCVSuggestionsWithAI(jdText, profile, reqs) {
+    try {
+        console.log('🤖 Generating AI CV Suggestions via Netlify function...');
+        
+        const prompt = `You are an expert career consultant. Generate specific, actionable CV improvement suggestions.
+
+CANDIDATE PROFILE:
+- Years of Experience: ${profile.yearsExp}
+- Core Skills: ${profile.coreSkills.join(', ')}
+- Brands Managed: ${profile.brandsManaged.join(', ')}
+- Industries: ${profile.industries.join(', ')}
+
+JOB REQUIREMENTS:
+- Required Tools: ${reqs.tools.map(t => t.name).join(', ')}
+- Hard Skills: ${reqs.hardSkills.join(', ')}
+- Experience Years: ${reqs.experienceYears || 'Not specified'}
+
+JOB DESCRIPTION (first 1000 chars):
+${jdText.substring(0, 1000)}
+
+TASK: Generate 5-7 CONDITIONAL work experience bullet suggestions in Italian.
+
+FORMAT REQUIREMENTS:
+1. Use these prefixes:
+   - "✏️ Se hai esperienza in [X], aggiungi: \"[bullet point]\""
+   - "⚠️ La JD enfatizza [X] - ce l'hai? Se sì, evidenzialo così: \"[bullet point]\""
+   - "💡 La tua esperienza in [Y] può essere inquadrata come [X]: \"[bullet point]\""
+
+2. Suggestions should be CONDITIONAL (IF candidate has experience)
+3. Match specific JD requirements
+4. Reference candidate's actual brands/industries where relevant
+5. Include metrics placeholders (X%, Y increase, etc.)
+6. Be HONEST - don't suggest fabricating experience
+
+Generate 5-7 bullet suggestions in Italian, one per line, following the format above.`;
+
+        const response = await fetch('/.netlify/functions/validate-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: prompt,
+                maxTokens: 500
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ AI CV Suggestions failed, using local fallback');
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.coverLetter && data.coverLetter.length > 50) {
+            console.log('✅ AI CV Suggestions generated successfully');
+            const bullets = data.coverLetter.split('\n').filter(line => line.trim().length > 0);
+            return bullets;
+        }
+        
+        console.warn('⚠️ AI CV Suggestions invalid, using local fallback');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ AI CV Suggestions error:', error);
+        return null;
+    }
+}
+
+// ============================================
+// AI-GENERATED GAP ANALYSIS
+// ============================================
+async function generateGapAnalysisWithAI(jdText, profile, competitiveAnalysis) {
+    try {
+        console.log('🤖 Generating AI Gap Analysis via Netlify function...');
+        
+        const prompt = `You are an expert career strategist. Analyze skill gaps and provide positioning strategies.
+
+CANDIDATE PROFILE:
+- Years of Experience: ${profile.yearsExp}
+- Core Skills: ${profile.coreSkills.join(', ')}
+- Brands Managed: ${profile.brandsManaged.join(', ')}
+- Industries: ${profile.industries.join(', ')}
+
+COMPETITIVE ANALYSIS:
+- Overall Score: ${competitiveAnalysis.overall}%
+- Experience Match: ${competitiveAnalysis.experienceMatch}%
+- Tools Coverage: ${competitiveAnalysis.toolsCoverage}%
+- Industry Fit: ${competitiveAnalysis.industryFit}%
+- Weaknesses: ${competitiveAnalysis.weaknesses.join('; ')}
+
+JOB DESCRIPTION (first 1000 chars):
+${jdText.substring(0, 1000)}
+
+TASK: Identify 2-4 critical skill gaps and provide positioning strategies.
+
+FORMAT (in Italian):
+For each gap, provide:
+1. gap: "[Missing Skill/Tool/Experience]"
+2. analysis: "[Do you have this? If yes, ADD IT. If no, is it learnable?]"
+3. positioning: "[Strategy to position existing experience as transferable]"
+
+Output as JSON array:
+[
+  {
+    "gap": "...",
+    "analysis": "...",
+    "positioning": "..."
+  }
+]
+
+Focus on CRITICAL gaps only (tools, platforms, industry knowledge).
+Be HONEST about what's missing.
+Provide CREATIVE positioning strategies to bridge gaps.`;
+
+        const response = await fetch('/.netlify/functions/validate-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: prompt,
+                maxTokens: 600
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ AI Gap Analysis failed, using local fallback');
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.coverLetter) {
+            try {
+                const cleanText = data.coverLetter.replace(/```json|```/g, '').trim();
+                const gaps = JSON.parse(cleanText);
+                
+                if (Array.isArray(gaps) && gaps.length > 0) {
+                    console.log('✅ AI Gap Analysis generated successfully');
+                    return gaps;
+                }
+            } catch (parseError) {
+                console.warn('⚠️ AI Gap Analysis parse error, using local fallback');
+            }
+        }
+        
+        return null;
+        
+    } catch (error) {
+        console.error('❌ AI Gap Analysis error:', error);
+        return null;
+    }
+}
+// ============================================
 // DETAILED CV SUGGESTIONS - CONDITIONAL
 // ============================================
 function generateDetailedCVSuggestions(jdText, reqs, profileSkills, industry, profile) {
@@ -1313,13 +1531,78 @@ async function generateDocumentsMartino() {
                 console.log('⚠️ Using template-based cover letter (AI fallback)');
             }
             
-            const aboutMe = generateCVAboutSectionMartino(jd, martinoProfile);
+            // Generate About Me with AI (parallel with CV suggestions)
+            const [aiAboutMe, aiCVSuggestions] = await Promise.all([
+                generateAboutMeWithAI(jd, martinoProfile),
+                generateCVSuggestionsWithAI(jd, martinoProfile, reqs)
+            ]);
             
+            // Use AI About Me or fallback to local
+            const aboutMe = aiAboutMe || generateCVAboutSectionMartino(jd, martinoProfile);
+            
+            // Generate local suggestions as base
             const detailedSuggestions = generateDetailedCVSuggestions(jd, reqs, martinoProfile.coreSkills, industry, martinoProfile);
+            
+            // Override with AI suggestions if available
+            if (aiCVSuggestions && aiCVSuggestions.length > 0) {
+                detailedSuggestions.workExperienceBullets = aiCVSuggestions;
+                console.log('✅ Using AI-generated CV suggestions');
+            } else {
+                console.log('⚠️ Using template-based CV suggestions (AI fallback)');
+            }
             
             const competitiveAnalysis = generateCompetitiveAnalysis(jd, martinoProfile);
             
+            // Generate Gap Analysis with AI
+            const aiGapAnalysis = await generateGapAnalysisWithAI(jd, martinoProfile, competitiveAnalysis);
+            
+            // Override local gap analysis if AI succeeded
+            if (aiGapAnalysis && aiGapAnalysis.length > 0) {
+                detailedSuggestions.gapAnalysis = aiGapAnalysis;
+                console.log('✅ Using AI-generated gap analysis');
+            } else {
+                console.log('⚠️ Using local gap analysis (AI fallback)');
+            }
+            
             const cvText = `${martinoProfile.name}\n${martinoProfile.coreSkills.join(', ')}\n${aboutMe}`;
+```
+
+---
+
+# 📋 RIEPILOGO MODIFICHE
+
+**4 modifiche totali:**
+
+1. ✅ **Timeout 60s** (PARTE 4)
+2. ✅ **3 nuove funzioni API** (PARTE 3, dopo cover letter AI)
+3. ✅ **Integra About Me + CV Suggestions** (PARTE 4)
+4. ✅ **Integra Gap Analysis** (PARTE 4)
+
+---
+
+# 💰 NUOVO COSTO API
+
+**Per ogni job:**
+- Cover Letter: $0.003
+- About Me: $0.002
+- CV Suggestions: $0.003
+- Gap Analysis: $0.003
+- **TOTALE: $0.011 per job**
+
+**30 candidature/mese:**
+- **€0.30/mese** (~30 centesimi)
+
+**ANCORA IRRISORIO!** ✅
+
+---
+
+# ⏱️ NUOVO TIMING
+```
+0-30s:  Keyword extraction (local, fast)
+30-45s: Cover Letter API
+45-55s: About Me + CV Suggestions API (parallel)
+55-60s: Gap Analysis API
+TOTALE: 60 secondi
             const atsScore = calculateATSScore(cvText, keywords);
             
             const detectedEmail = extractEmailFromJD(jd);
@@ -1794,7 +2077,7 @@ async function generateDocumentsGeneric() {
         
         resultsDiv.innerHTML = resultsHTML;
         loadingDiv.style.display = 'none';
-    }, 45000);
+    }, 65000);
 }
 
 function handleCVUpload(event) {
