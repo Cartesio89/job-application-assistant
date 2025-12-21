@@ -1299,7 +1299,19 @@ async function generateDocumentsMartino() {
             
             const reqs = extractRequirements(jd);
             
+            // Try AI-generated cover letter first
+            const aiCoverLetter = await generateCoverLetterWithAI(company, role, jd, martinoProfile);
+            
+            // Generate template variants as fallback
             const coverLetterVariants = generateCoverLetterVariantsBilingual(company, role, jd, martinoProfile);
+            
+            // Use AI if available, otherwise use standard template
+            if (aiCoverLetter) {
+                coverLetterVariants.ai_generated_it = aiCoverLetter;
+                console.log('✅ Using AI-generated cover letter');
+            } else {
+                console.log('⚠️ Using template-based cover letter (AI fallback)');
+            }
             
             const aboutMe = generateCVAboutSectionMartino(jd, martinoProfile);
             
@@ -1450,7 +1462,8 @@ function displayResultsMartino(results, analysisId) {
             <h3 style="color: #667eea;">📝 Cover Letter - Scegli Stile & Lingua</h3>
             
             <select id="coverLetterStyleSelector" onchange="switchCoverLetterVariant()" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px; margin-bottom: 15px;">
-                <option value="standard_it">🇮🇹 Standard (Corporate/Finance)</option>
+                ${results.coverLetterVariants.ai_generated_it ? '<option value="ai_generated_it">🤖 AI-Generated (Personalized) ⭐ RECOMMENDED</option>' : ''}
+                <option value="standard_it" ${!results.coverLetterVariants.ai_generated_it ? 'selected' : ''}>🇮🇹 Standard (Corporate/Finance)</option>
                 <option value="bold_it">🇮🇹 Bold (Startup/Tech)</option>
                 <option value="storytelling_it">🇮🇹 Storytelling (Creative)</option>
                 <option value="standard_en">🇬🇧 Standard (Corporate/Finance)</option>
@@ -1458,7 +1471,7 @@ function displayResultsMartino(results, analysisId) {
                 <option value="storytelling_en">🇬🇧 Storytelling (Creative)</option>
             </select>
             
-            <textarea id="editableCoverLetter" style="width: 100%; min-height: 400px; padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${results.coverLetter}</textarea>
+            <textarea id="editableCoverLetter" style="width: 100%; min-height: 400px; padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${results.coverLetterVariants.ai_generated_it || results.coverLetter}</textarea>
             
             <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button onclick="copyToClipboard('editableCoverLetter')" style="flex: 1; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
