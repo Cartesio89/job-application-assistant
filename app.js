@@ -1,6 +1,6 @@
-// Job Application System V4.1 - PRODUCTION READY
-// Complete rewrite with all fixes integrated
-// Part 1: Core Data Structures, Storage, Advanced Keywords with Claude API
+// Job Application System V4.2 - PRODUCTION READY
+// Complete rewrite with intelligent filtering + all fixes
+// Part 1: Core Data, Storage, Advanced Keywords (NO API needed)
 
 // ============================================
 // MARTINO'S PROFILE
@@ -28,13 +28,12 @@ const martinoProfile = {
     ]
 };
 
-// Global variables
 let uploadedCVText = '';
 let uploadedFileName = '';
 let currentAnalysisResults = null;
 
 // ============================================
-// ENHANCED STORAGE MANAGER (with sent tracking & feedback)
+// STORAGE MANAGER
 // ============================================
 const StorageManager = {
     saveAnalysis(company, role, results, type = 'martino') {
@@ -51,21 +50,13 @@ const StorageManager = {
             emailSent: false,
             sentDate: null,
             recipientEmail: null,
-            attachments: [],
             feedbackCompleted: false,
             outcome: null,
-            responseTime: null,
-            feedbackNotes: '',
-            feedbackDeadline: null,
-            status: 'draft',
-            reminderSent: false,
-            recoverable: true
+            status: 'draft'
         };
         
         history.unshift(entry);
-        
         if (history.length > 50) history.pop();
-        
         localStorage.setItem('job_app_history', JSON.stringify(history));
         return entry.id;
     },
@@ -76,8 +67,7 @@ const StorageManager = {
     },
     
     getAnalysis(id) {
-        const history = this.getHistory();
-        return history.find(entry => entry.id === parseInt(id));
+        return this.getHistory().find(entry => entry.id === parseInt(id));
     },
     
     updateAnalysis(id, updates) {
@@ -94,7 +84,6 @@ const StorageManager = {
             emailSent: true,
             sentDate: new Date().toISOString(),
             recipientEmail: emailData.recipientEmail,
-            attachments: emailData.attachments,
             status: 'sent',
             feedbackDeadline: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString()
         });
@@ -104,72 +93,9 @@ const StorageManager = {
         this.updateAnalysis(id, {
             feedbackCompleted: true,
             outcome: feedbackData.outcome,
-            responseTime: feedbackData.responseTime,
-            feedbackNotes: feedbackData.feedbackNotes,
-            interviewType: feedbackData.interviewType,
             status: 'completed',
             feedbackDate: new Date().toISOString()
         });
-        
-        this.updateLearningData(id, feedbackData);
-    },
-    
-    updateLearningData(id, feedbackData) {
-        const entry = this.getAnalysis(id);
-        if (!entry) return;
-        
-        const learning = this.getLearningData();
-        
-        const industry = entry.fullResults?.industry || 'generic';
-        if (!learning.industryStats[industry]) {
-            learning.industryStats[industry] = {
-                applications: 0,
-                interviews: 0,
-                rejections: 0,
-                ghosted: 0,
-                avgAtsScore: 0,
-                bestStyle: null,
-                totalAtsScore: 0
-            };
-        }
-        
-        const industryData = learning.industryStats[industry];
-        industryData.applications++;
-        industryData.totalAtsScore += entry.atsScore;
-        industryData.avgAtsScore = Math.round(industryData.totalAtsScore / industryData.applications);
-        
-        if (feedbackData.outcome === 'interview') industryData.interviews++;
-        if (feedbackData.outcome === 'rejection') industryData.rejections++;
-        if (feedbackData.outcome === 'ghosted') industryData.ghosted++;
-        
-        const style = entry.fullResults?.selectedStyle || 'standard_it';
-        if (!learning.styleEffectiveness[style]) {
-            learning.styleEffectiveness[style] = {
-                used: 0,
-                interviews: 0,
-                successRate: 0
-            };
-        }
-        
-        learning.styleEffectiveness[style].used++;
-        if (feedbackData.outcome === 'interview') {
-            learning.styleEffectiveness[style].interviews++;
-        }
-        learning.styleEffectiveness[style].successRate = Math.round(
-            (learning.styleEffectiveness[style].interviews / learning.styleEffectiveness[style].used) * 100
-        );
-        
-        localStorage.setItem('learning_data', JSON.stringify(learning));
-    },
-    
-    getLearningData() {
-        const data = localStorage.getItem('learning_data');
-        return data ? JSON.parse(data) : {
-            industryStats: {},
-            styleEffectiveness: {},
-            toolsEffectiveness: {},
-            lastUpdated: new Date().toISOString()
-        };
     },
     
     deleteAnalysis(id) {
@@ -177,17 +103,12 @@ const StorageManager = {
         localStorage.setItem('job_app_history', JSON.stringify(history));
     },
     
-    clearHistory() {
-        localStorage.removeItem('job_app_history');
-    },
-    
     exportData() {
         const data = {
             profile: martinoProfile,
             history: this.getHistory(),
-            learningData: this.getLearningData(),
             exportedAt: new Date().toISOString(),
-            version: '4.1'
+            version: '4.2'
         };
         
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -199,89 +120,11 @@ const StorageManager = {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
-        showExportInstructions();
-    },
-    
-    importData(jsonData) {
-        try {
-            const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-            
-            if (!data.version || !data.history) {
-                throw new Error('File non valido');
-            }
-            
-            const currentHistory = this.getHistory();
-            const merge = confirm(
-                `Trovate ${data.history.length} candidature nel backup.\n\n` +
-                `Hai attualmente ${currentHistory.length} candidature salvate.\n\n` +
-                `Vuoi UNIRE i dati (consigliato) o SOVRASCRIVERE tutto?`
-            );
-            
-            if (merge) {
-                const merged = [...currentHistory];
-                data.history.forEach(entry => {
-                    const existingIndex = merged.findIndex(e => e.id === entry.id);
-                    if (existingIndex === -1) {
-                        merged.push(entry);
-                    } else {
-                        if (new Date(entry.date) > new Date(merged[existingIndex].date)) {
-                            merged[existingIndex] = entry;
-                        }
-                    }
-                });
-                
-                localStorage.setItem('job_app_history', JSON.stringify(merged));
-                alert(`✅ Dati uniti! Totale candidature: ${merged.length}`);
-            } else {
-                localStorage.setItem('job_app_history', JSON.stringify(data.history));
-                localStorage.setItem('learning_data', JSON.stringify(data.learningData || {}));
-                alert(`✅ Dati importati! ${data.history.length} candidature caricate.`);
-            }
-            
-            location.reload();
-            
-        } catch (error) {
-            alert('❌ Errore import: file corrotto o formato non valido');
-            console.error(error);
-        }
     }
 };
 
 // ============================================
-// FEEDBACK SYSTEM - Auto-ghost after 15 days
-// ============================================
-function checkFeedbackStatus() {
-    const applications = StorageManager.getHistory();
-    const today = new Date();
-    
-    applications.forEach(app => {
-        if (app.status === 'sent' && !app.feedbackCompleted) {
-            const sentDate = new Date(app.sentDate);
-            const daysPassed = Math.floor((today - sentDate) / (1000 * 60 * 60 * 24));
-            
-            if (daysPassed === 15 && !app.reminderSent) {
-                showFeedbackReminder(app);
-                StorageManager.updateAnalysis(app.id, { reminderSent: true });
-            }
-            
-            if (daysPassed > 15 && !app.feedbackCompleted) {
-                StorageManager.updateAnalysis(app.id, {
-                    status: 'auto-ghosted',
-                    outcome: 'ghosted',
-                    recoverable: true
-                });
-            }
-        }
-    });
-}
-
-if (typeof document !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', checkFeedbackStatus);
-}
-
-// ============================================
-// ADVANCED KEYWORD EXTRACTION - CLAUDE API VALIDATED
+// KEYWORD EXTRACTION - INTELLIGENT LOCAL FILTERS
 // ============================================
 
 const stopwords = new Set([
@@ -292,140 +135,27 @@ const stopwords = new Set([
     'nel', 'nello', 'nella', 'nei', 'negli', 'nelle',
     'sul', 'sullo', 'sulla', 'sui', 'sugli', 'sulle',
     'del', 'dello', 'della', 'dei', 'degli', 'delle',
-    'col', 'coi', 'sull', 'dall', 'all', 'coll',
-    'e', 'ed', 'o', 'od', 'ma', 'però', 'perché', 'quindi', 'dunque',
-    'anche', 'inoltre', 'oppure', 'ovvero', 'cioè', 'sia',
-    'che', 'chi', 'cui', 'quale', 'quali', 'quanto', 'quanta', 'quanti', 'quante',
+    'e', 'ed', 'o', 'ma', 'però', 'perché', 'quindi',
+    'che', 'chi', 'cui', 'quale', 'quanto',
     'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro',
-    'mi', 'ti', 'ci', 'vi', 'si', 'ne',
-    'questo', 'questa', 'questi', 'queste',
-    'quello', 'quella', 'quelli', 'quelle',
-    'tale', 'tali', 'altro', 'altra', 'altri', 'altre',
-    'è', 'sono', 'sei', 'siamo', 'siete', 'era', 'erano', 'ero', 'eravamo',
-    'essere', 'stato', 'stata', 'stati', 'state', 'sia', 'siano',
-    'avere', 'ha', 'hanno', 'hai', 'ho', 'abbiamo', 'avete',
-    'aveva', 'avevano', 'avuto', 'avuta', 'avuti', 'avute',
-    'può', 'possono', 'puoi', 'possiamo', 'potere',
-    'deve', 'devono', 'devi', 'dobbiamo', 'dovere',
-    'vuole', 'vogliono', 'vuoi', 'vogliamo', 'volere',
-    'fare', 'fa', 'fanno', 'fai', 'facciamo', 'fatto', 'fatta',
-    'dire', 'dice', 'dicono', 'detto', 'detta',
-    'andare', 'va', 'vanno', 'vai', 'andiamo',
-    'dare', 'dà', 'danno', 'dai', 'diamo', 'dato', 'data',
-    'stare', 'sta', 'stanno', 'stai', 'stiamo',
-    'vedere', 'vede', 'vedono', 'vedi', 'vediamo', 'visto', 'vista',
-    'non', 'più', 'molto', 'poco', 'tanto', 'troppo', 'sempre', 'mai',
-    'già', 'ancora', 'solo', 'proprio', 'quasi', 'almeno',
-    'come', 'dove', 'quando', 'così', 'bene', 'male',
-    'lavoro', 'lavori', 'lavorare', 'lavoratore', 'lavoratori',
-    'offerta', 'offerte', 'offrire', 'offriamo',
-    'posizione', 'posizioni', 'posto', 'posti',
-    'ricerca', 'ricerche', 'ricerchiamo', 'ricercando',
-    'opportunità', 'chance', 'possibilità',
-    'cerchiamo', 'stiamo', 'cercando', 'cerco', 'cerca', 'cerchi', 'cercano',
-    'assume', 'assumere', 'assunzione', 'assunzioni',
-    'selezione', 'selezioni', 'seleziona', 'selezioniamo',
-    'inserimento', 'inserire', 'inseriamo',
-    'candidato', 'candidata', 'candidati', 'candidature', 'candidatura',
-    'collega', 'colleghi', 'colleghe',
-    'collaboratore', 'collaboratori', 'collaboratrice', 'collaboratrici',
-    'risorsa', 'risorse', 'figura', 'figure', 'profilo', 'profili',
-    'persona', 'persone', 'individuo', 'individui',
-    'talento', 'talenti', 'professional', 'professionista', 'professionisti',
-    'impiego', 'occupazione', 'incarico',
-    'azienda', 'aziende', 'società', 'impresa', 'imprese', 'ditta',
-    'team', 'gruppo', 'squadra', 'staff',
-    'ufficio', 'sede', 'headquarter', 'headquarters',
-    'reparto', 'dipartimento', 'divisione', 'area',
-    'organizzazione', 'organico', 'struttura',
-    'ambiente', 'contesto', 'realtà', 'panorama',
-    'dinamico', 'dinamica', 'dinamici', 'dinamiche',
-    'internazionale', 'internazionali', 'globale', 'globali',
-    'giovane', 'giovani', 'stimolante', 'stimolanti',
-    'innovativo', 'innovativa', 'innovativi', 'innovative',
-    'importante', 'rilevante', 'leader', 'primario', 'primaria',
-    'strutturato', 'strutturata', 'solido', 'solida',
-    'crescita', 'espansione', 'sviluppo',
-    'settore', 'settori', 'mercato', 'mercati', 'industria', 'industrie',
-    'clienti', 'cliente', 'partner', 'fornitori', 'fornitore',
-    'business', 'attività', 'operazioni', 'servizi', 'servizio',
-    'vuoi', 'desidera', 'desiderano', 'desideri', 'desideriamo', 'desiderare',
-    'interessato', 'interessata', 'interessati', 'interessate',
-    'unire', 'unirti', 'unirsi', 'entrare', 'entri',
-    'lavorare', 'lavorando', 'occupare', 'occuparsi',
-    'svolgere', 'svolge', 'svolgono', 'svolgimento',
-    'gestire', 'gestisce', 'gestiscono', 'gestione',
-    'seguire', 'segue', 'seguono', 'supportare', 'supporto',
-    'contribuire', 'contribuisce', 'contribuiscono', 'contributo',
-    'coordinare', 'coordina', 'coordinamento',
-    'sviluppare', 'sviluppa', 'sviluppano',
-    'competenza', 'competenze', 'skill', 'skills',
-    'esclusivit', 'esclusivo', 'esclusiva', 'esclusivi', 'esclusive',
-    'requisito', 'requisiti', 'requirement', 'requirements',
-    'necessario', 'necessari', 'necessaria', 'necessarie',
-    'richiesto', 'richiesti', 'richiesta', 'richieste',
-    'esperienza', 'esperienze', 'conoscenza', 'conoscenze',
-    'capacità', 'abilità', 'attitudine', 'attitudini',
-    'qualifica', 'qualifiche', 'titolo', 'titoli',
-    'diploma', 'laurea', 'master', 'certificazione', 'certificazioni',
-    'ottimo', 'ottima', 'ottimi', 'ottime', 'eccellente', 'eccellenti',
-    'buono', 'buona', 'buoni', 'buone', 'valido', 'valida',
-    'preferibile', 'preferibili', 'gradita', 'gradito', 'gradite',
-    'apprezzata', 'apprezzato', 'apprezzate', 'completano', 'completa',
-    'ideale', 'perfetto', 'perfetta', 'adatto', 'adatta',
-    'offriamo', 'garantiamo', 'assicuriamo', 'prevediamo',
-    'contratto', 'contrattuale', 'retribuzione', 'stipendio',
-    'benefit', 'welfare', 'ticket', 'buoni', 'premio',
-    'formazione', 'training', 'corso', 'corsi',
-    'the', 'a', 'an', 'of', 'to', 'in', 'for', 'on', 'at', 'with', 'by', 'from', 'about',
-    'into', 'through', 'during', 'before', 'after', 'above', 'below',
-    'between', 'under', 'over',
-    'and', 'or', 'but', 'so', 'yet', 'nor', 'as', 'if', 'than', 'that',
-    'because', 'since', 'unless', 'while', 'where', 'when',
-    'you', 'your', 'we', 'our', 'they', 'their', 'it', 'its',
-    'he', 'she', 'him', 'her', 'us', 'them', 'this',
-    'these', 'those', 'who', 'what', 'which', 'whom', 'whose',
-    'are', 'is', 'was', 'were', 'been', 'being', 'be',
-    'have', 'has', 'had', 'having',
-    'can', 'could', 'may', 'might', 'must', 'should', 'would', 'will',
-    'do', 'does', 'did', 'doing', 'done',
-    'make', 'makes', 'made', 'making',
-    'get', 'gets', 'got', 'getting',
-    'go', 'goes', 'went', 'going', 'gone',
-    'come', 'comes', 'came', 'coming',
-    'take', 'takes', 'took', 'taking', 'taken',
-    'see', 'sees', 'saw', 'seeing', 'seen',
-    'know', 'knows', 'knew', 'knowing', 'known',
-    'think', 'thinks', 'thought', 'thinking',
-    'want', 'wants', 'wanted', 'wanting',
-    'use', 'uses', 'used', 'using',
-    'not', 'no', 'yes', 'very', 'too', 'also', 'just', 'only',
-    'even', 'well', 'back', 'more', 'most', 'all', 'some', 'any',
-    'both', 'each', 'every', 'such', 'other', 'another',
-    'how', 'now', 'then', 'here', 'there',
-    'job', 'jobs', 'position', 'positions', 'role', 'roles',
-    'work', 'working', 'worker', 'workers',
-    'offer', 'offering', 'opportunity', 'opportunities',
-    'looking', 'seeking', 'search', 'searching',
-    'hire', 'hiring', 'recruit', 'recruiting', 'recruitment',
-    'employment', 'vacancy', 'vacancies', 'opening', 'openings',
-    'candidate', 'candidates', 'applicant', 'applicants',
-    'colleague', 'colleagues', 'member', 'members',
-    'professional', 'professionals', 'talent', 'talents',
-    'individual', 'individuals', 'person', 'people',
-    'company', 'companies', 'firm', 'organization', 'business',
-    'group', 'office', 'department', 'division',
-    'environment', 'culture', 'workplace',
-    'dynamic', 'international', 'global', 'innovative',
-    'leading', 'major', 'growing', 'established',
-    'successful', 'reputable', 'prestigious',
-    'support', 'contribute', 'tasks', 'join',
-    'manage', 'lead', 'develop', 'coordinate',
-    'ensure', 'provide', 'deliver', 'achieve',
-    'years', 'experience', 'preferred', 'required', 'must',
-    'skills', 'knowledge', 'ability', 'abilities',
-    'qualification', 'qualifications', 'degree', 'education',
-    'excellent', 'strong', 'good', 'proven', 'solid'
+    'questo', 'questa', 'quello', 'quella',
+    'è', 'sono', 'sei', 'era', 'erano',
+    'avere', 'ha', 'hanno', 'hai', 'ho',
+    'può', 'possono', 'deve', 'devono',
+    'vuole', 'vogliono', 'fare', 'fa', 'fanno',
+    'non', 'più', 'molto', 'poco', 'sempre', 'mai',
+    'come', 'dove', 'quando', 'così',
+    'lavoro', 'offerta', 'posizione', 'ricerca',
+    'cerchiamo', 'stiamo', 'candidato', 'azienda',
+    'team', 'ambiente', 'dinamico', 'importante',
+    'the', 'a', 'an', 'of', 'to', 'in', 'for', 'on', 'at', 'with',
+    'and', 'or', 'but', 'as', 'if', 'than', 'that',
+    'you', 'we', 'they', 'it', 'this', 'these', 'those',
+    'are', 'is', 'was', 'were', 'be', 'been',
+    'have', 'has', 'had', 'can', 'could', 'may', 'might',
+    'do', 'does', 'did', 'make', 'get', 'go',
+    'not', 'no', 'yes', 'very', 'too', 'also', 'just',
+    'job', 'position', 'role', 'work', 'looking', 'seeking'
 ]);
 
 function extractBigrams(text) {
@@ -441,176 +171,105 @@ function extractBigrams(text) {
     return bigrams;
 }
 
-function calculateTFIDF(term, text, allTexts = [text]) {
+function calculateTFIDF(term, text) {
     const termLower = term.toLowerCase();
     const textLower = text.toLowerCase();
     
     const termCount = (textLower.match(new RegExp(`\\b${termLower.replace(/\s+/g, '\\s+')}\\b`, 'g')) || []).length;
     const totalWords = textLower.split(/\s+/).length;
     const tf = termCount / totalWords;
-    
-    const docsWithTerm = allTexts.filter(doc => 
-        doc.toLowerCase().includes(termLower)
-    ).length;
-    const idf = Math.log(allTexts.length / (docsWithTerm + 1));
+    const idf = Math.log(100 / (termCount + 1));
     
     return tf * idf;
 }
 
 function getDomainBoost(term) {
     const boostMap = {
+        // Marketing
+        'crm': 3.0,
+        'customer relationship': 2.8,
+        'customer base': 2.8,
+        'segmentation': 2.8,
+        'clustering': 2.5,
+        'retention': 2.8,
+        'acquisition': 2.8,
+        'engagement': 2.5,
+        'loyalty': 2.5,
+        'vip management': 2.8,
         'digital marketing': 2.5,
-        'media planning': 2.5,
         'performance marketing': 2.5,
-        'social media': 2.0,
-        'content marketing': 2.0,
-        'email marketing': 2.0,
-        'seo': 2.0,
-        'sem': 2.0,
-        'campaign optimization': 2.0,
-        'budget management': 2.0,
-        'product management': 2.5,
-        'agile': 2.0,
-        'scrum': 2.0,
-        'roadmap': 2.0,
-        'user story': 2.0,
-        'data analysis': 2.5,
-        'data analytics': 2.5,
-        'business intelligence': 2.0,
-        'kpi': 2.0,
-        'dashboard': 2.0,
-        'google analytics': 2.0,
-        'power bi': 2.0,
-        'tableau': 2.0,
-        'meta ads': 2.0,
-        'google ads': 2.0,
+        'media planning': 2.5,
+        'campaign optimization': 2.5,
+        'b2b marketing': 3.0,
+        'demand generation': 2.8,
+        'lead generation': 2.5,
+        
+        // Tools
+        'power bi': 2.5,
+        'tableau': 2.5,
+        'looker studio': 2.3,
+        'google analytics': 2.5,
+        'ga4': 2.5,
+        'meta ads': 2.3,
+        'google ads': 2.3,
         'facebook ads': 2.0,
-        'tiktok': 1.8,
-        'linkedin ads': 1.8,
-        'programmatic': 1.8,
-        'dv360': 1.8,
-        'tag manager': 1.8,
-        'looker studio': 1.8,
-        'excel': 1.6,
-        'powerpoint': 1.6,
-        'photoshop': 1.8,
-        'illustrator': 1.8,
-        'figma': 1.8,
-        'canva': 1.6,
-        'jira': 1.6,
-        'asana': 1.6,
-        'marketing': 1.5,
-        'strategy': 1.5,
-        'analysis': 1.5,
-        'management': 1.5,
-        'planning': 1.5
+        'tiktok': 2.0,
+        'programmatic': 2.3,
+        'salesforce': 2.5,
+        'hubspot': 2.5,
+        
+        // Skills
+        'kpi': 2.0,
+        'roi': 2.0,
+        'roas': 2.0,
+        'data analysis': 2.5,
+        'business intelligence': 2.5,
+        'stakeholder management': 2.0,
+        
+        // Industry
+        'automotive': 1.8,
+        'fashion': 1.8,
+        'gaming': 2.0,
+        'betting': 2.0,
+        'saas': 2.0
     };
     
     return boostMap[term.toLowerCase()] || 1.0;
 }
 
-function filterIrrelevantKeywords(keywords) {
-    const irrelevantPatterns = [
-        /^(sull|dell|nell|all|coll)\s/i,
-        /\b(offerta|lavoro|job|posizione|ricerca)\b/i,
-        /\b(azienda|società|team|gruppo|ufficio)\b/i,
-        /\b(cerchi|cerca|cerchiamo|ricerca|stiamo)\b/i,
-        /\b(vuoi|vuole|desidera|interessato)\b/i,
-        /\b(candidato|candidata|figura|risorsa)\b/i,
-        /\b(ambiente|dinamico|internazionale|giovane)\b/i,
-        /\b(importante|leader|settore|mercato)\b/i,
-        /\b(ottimo|buono|eccellente|preferibile)\b/i,
-        /\b(lavorare|occupare|svolgere|gestire|seguire)\b/i,
-        /\b(unire|entrare|contribuire|supportare)\b/i,
-        /\b(competenza|esperienza|conoscenza|capacità)\b/i,
-        /\b(requisito|necessario|richiesto)\b/i,
-        /\b(looking|support|work|offer|role)\b/i,
-        /\b(opportunity|join|contribute|tasks)\b/i,
-        /\b(candidate|position|hiring|seeking)\b/i,
-        /\b(years|experience|preferred|required)\b/i,
-        /\b(contratto|retribuzione|benefit|welfare)\b/i,
-        /\b(formazione|training|corso)\b/i,
-        /\b(sede|ufficio|zona|area|città)\b/i
+function applyIntelligentFilters(keywords, jdText) {
+    const jdLower = jdText.toLowerCase();
+    
+    const marketingPatterns = [
+        /\b(crm|customer\s+relationship|customer\s+base|segmentation|clustering)\b/i,
+        /\b(acquisition|retention|engagement|loyalty|fidelizzazione)\b/i,
+        /\b(kpi|performance|roi|roas|ctr|conversion)\b/i,
+        /\b(campaign|marketing|promotional)\b/i,
+        /\b(stakeholder|cross.selling|up.selling|vip)\b/i,
+        /\b(data\s+analysis|analytics|bi|business\s+intelligence)\b/i
     ];
+    
+    const toolPatterns = [
+        /\b(power\s+bi|tableau|looker|ga4|google\s+analytics)\b/i,
+        /\b(salesforce|hubspot|marketo|mailchimp)\b/i,
+        /\b(meta\s+ads|google\s+ads|facebook|tiktok)\b/i,
+        /\b(excel|sql|python)\b/i
+    ];
+    
+    const allPatterns = [...marketingPatterns, ...toolPatterns];
     
     return keywords.filter(kw => {
         const word = kw.word.toLowerCase();
         
-        if (irrelevantPatterns.some(pattern => pattern.test(word))) {
-            return false;
-        }
-        
-        if (word.length < 3) {
-            return false;
-        }
-        
-        if (word.length === 3 && !/^[A-Z]{3}$/.test(kw.word)) {
-            return false;
-        }
-        
-        if (/^\d+$/.test(word)) {
-            return false;
-        }
-        
-        if (word.includes(' ')) return true;
-        if (kw.score > 1.0) return true;
         if (kw.count >= 3) return true;
+        if (kw.score > 0.8) return true;
+        if (allPatterns.some(p => p.test(word))) return true;
+        if (word.includes(' ') && word.split(' ').every(w => w.length >= 4)) return true;
+        if (/^[A-Z]{2,5}$/.test(kw.word)) return true;
         if (getDomainBoost(word) >= 1.8) return true;
         
         return false;
     });
-}
-
-async function validateKeywordsWithClaude(keywords, jdText) {
-    try {
-        console.log('🔍 Calling Claude API via Netlify function...');
-        
-        const response = await fetch('/.netlify/functions/validate-keywords', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                keywords: keywords,
-                jdText: jdText
-            })
-        });
-        
-        if (!response.ok) {
-            console.warn('❌ Netlify function failed, using local filter');
-            return keywords;
-        }
-        
-        const data = await response.json();
-        
-        if (data.fallback) {
-            console.warn('⚠️ Claude API fallback mode:', data.error);
-            return keywords;
-        }
-        
-        console.log(`✅ Claude validated: ${data.validatedCount}/${data.originalCount} keywords`);
-        
-        const validKeywords = data.validKeywords;
-        
-        const filtered = keywords.filter(kw => 
-            validKeywords.some(vk => 
-                kw.word.toLowerCase() === vk || 
-                kw.word.toLowerCase().includes(vk) ||
-                vk.includes(kw.word.toLowerCase())
-            )
-        );
-        
-        if (filtered.length < 5 && keywords.length >= 5) {
-            console.warn('⚠️ Too few validated keywords, using top scored instead');
-            return keywords.slice(0, Math.min(12, keywords.length));
-        }
-        
-        return filtered.length > 0 ? filtered : keywords.slice(0, 8);
-        
-    } catch (error) {
-        console.error('❌ Keyword validation error:', error);
-        return keywords;
-    }
 }
 
 async function extractKeywordsAdvanced(jdText, topN = 15) {
@@ -627,187 +286,825 @@ async function extractKeywordsAdvanced(jdText, topN = 15) {
         count: (jdText.toLowerCase().match(new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'g')) || []).length
     }));
     
-    const localFiltered = filterIrrelevantKeywords(scored);
+    const irrelevantPatterns = [
+        /\b(offerta|lavoro|posizione|ricerca|candidato)\b/i,
+        /\b(azienda|società|team|gruppo)\b/i,
+        /\b(cerchiamo|offriamo|ambiente|dinamico)\b/i
+    ];
     
-    const sorted = localFiltered
+    const filtered = scored.filter(kw => {
+        return !irrelevantPatterns.some(p => p.test(kw.word));
+    });
+    
+    const intelligent = applyIntelligentFilters(filtered, jdText);
+    
+    return intelligent
         .sort((a, b) => b.score - a.score)
-        .slice(0, Math.min(topN * 2, 30));
-    
-    const claudeValidated = await validateKeywordsWithClaude(sorted, jdText);
-    
-    return claudeValidated.slice(0, topN);
+        .slice(0, topN);
 }
-// Job Application System V4.1 - Part 2
-// Industry Detection, Requirements Extraction, Competitive Analysis
+// Part 2: Industry Detection, Requirements Extraction, Competitive Analysis, About Me
 
 // ============================================
 // INDUSTRY DETECTION
 // ============================================
 function detectIndustry(jdText) {
     const patterns = {
-        tech: {
-            keywords: /\b(startup|saas|agile|scrum|sprint|mvp|github|aws|cloud|api|devops)\b/gi,
-            weight: 0
-        },
-        corporate: {
-            keywords: /\b(enterprise|compliance|governance|audit|corporate|policy|regulation)\b/gi,
-            weight: 0
-        },
-        creative: {
-            keywords: /\b(portfolio|design|creative|visual|brand|aesthetic|artistic)\b/gi,
-            weight: 0
-        },
-        finance: {
-            keywords: /\b(banking|investment|trading|financial|asset|portfolio|risk)\b/gi,
-            weight: 0
-        },
-        marketing: {
-            keywords: /\b(campaign|advertising|media|social|content|seo|brand awareness)\b/gi,
-            weight: 0
-        }
+        tech: /\b(software|developer|engineer|code|programming|api|cloud|devops|agile)\b/gi,
+        corporate: /\b(consulting|corporate|enterprise|stakeholder|governance|compliance)\b/gi,
+        creative: /\b(design|creative|ux|ui|brand|content|visual|graphics)\b/gi,
+        finance: /\b(financial|banking|investment|portfolio|trading|fintech)\b/gi,
+        marketing: /\b(marketing|advertising|campaign|seo|sem|social media|analytics)\b/gi
     };
     
-    for (const [industry, data] of Object.entries(patterns)) {
-        const matches = jdText.match(data.keywords);
-        patterns[industry].weight = matches ? matches.length : 0;
+    const scores = {};
+    for (const [industry, pattern] of Object.entries(patterns)) {
+        const matches = jdText.match(pattern) || [];
+        scores[industry] = matches.length;
     }
     
-    const sorted = Object.entries(patterns).sort((a, b) => b[1].weight - a[1].weight);
-    
-    return sorted[0][1].weight > 0 ? sorted[0][0] : 'generic';
+    const maxScore = Math.max(...Object.values(scores));
+    return Object.keys(scores).find(key => scores[key] === maxScore) || 'corporate';
 }
 
 function getIndustryTemplate(industry) {
     const templates = {
         tech: {
-            tone: 'informal',
-            verbs: ['shipped', 'built', 'scaled', 'optimized', 'launched', 'implemented'],
-            format: 'bullet_metrics',
-            emphasis: 'results'
+            tone: 'technical and data-driven',
+            verbs: ['implement', 'optimize', 'develop', 'analyze', 'scale'],
+            format: 'metrics-focused',
+            emphasis: 'quantifiable results and technical depth'
         },
         corporate: {
-            tone: 'formal',
-            verbs: ['managed', 'coordinated', 'ensured', 'delivered', 'oversaw', 'facilitated'],
-            format: 'detailed_paragraphs',
-            emphasis: 'process'
+            tone: 'professional and strategic',
+            verbs: ['drive', 'manage', 'coordinate', 'deliver', 'enhance'],
+            format: 'achievement-oriented',
+            emphasis: 'leadership and cross-functional collaboration'
         },
         creative: {
-            tone: 'expressive',
-            verbs: ['designed', 'crafted', 'created', 'developed', 'conceptualized', 'produced'],
-            format: 'storytelling',
-            emphasis: 'impact'
+            tone: 'innovative and collaborative',
+            verbs: ['design', 'create', 'conceptualize', 'iterate', 'elevate'],
+            format: 'portfolio-focused',
+            emphasis: 'creative vision and impact'
         },
         finance: {
-            tone: 'precise',
-            verbs: ['analyzed', 'forecasted', 'optimized', 'managed', 'allocated', 'monitored'],
-            format: 'quantitative',
-            emphasis: 'numbers'
+            tone: 'analytical and precise',
+            verbs: ['analyze', 'forecast', 'optimize', 'assess', 'model'],
+            format: 'numbers-driven',
+            emphasis: 'ROI and financial impact'
         },
         marketing: {
-            tone: 'dynamic',
-            verbs: ['drove', 'increased', 'boosted', 'generated', 'executed', 'optimized'],
-            format: 'results_focused',
-            emphasis: 'metrics'
-        },
-        generic: {
-            tone: 'balanced',
-            verbs: ['managed', 'developed', 'implemented', 'coordinated', 'achieved', 'delivered'],
-            format: 'standard',
-            emphasis: 'mixed'
+            tone: 'results-oriented and dynamic',
+            verbs: ['launch', 'optimize', 'drive', 'grow', 'engage'],
+            format: 'campaign-centric',
+            emphasis: 'metrics and audience growth'
         }
     };
     
-    return templates[industry] || templates.generic;
+    return templates[industry] || templates.corporate;
 }
 
 // ============================================
 // REQUIREMENTS EXTRACTION
 // ============================================
 function extractRequirements(jdText) {
-    const jdLower = jdText.toLowerCase();
-    const requirements = {
-        tools: [],
-        experienceYears: null,
-        softSkills: [],
-        hardSkills: []
-    };
-    
     const toolPatterns = [
-        { pattern: /adobe creative suite|photoshop|illustrator|premiere pro|after effects|indesign/gi, category: 'design' },
-        { pattern: /\bexcel\b|\bpowerpoint\b|power bi|looker studio|google analytics|ga4|tableau/gi, category: 'analytics' },
-        { pattern: /\bmeta\b|facebook ads?|instagram|tiktok|linkedin ads?|youtube/gi, category: 'social' },
-        { pattern: /\bjira\b|trello|asana|monday\.com|confluence/gi, category: 'project' },
-        { pattern: /canva|figma|sketch|adobe xd/gi, category: 'design' },
-        { pattern: /google ads|meta ads|dv360|programmatic|tag manager/gi, category: 'marketing' }
+        { category: 'design', tools: ['figma', 'sketch', 'adobe xd', 'photoshop', 'illustrator', 'indesign'] },
+        { category: 'analytics', tools: ['google analytics', 'ga4', 'power bi', 'tableau', 'looker', 'mixpanel'] },
+        { category: 'social', tools: ['meta ads', 'facebook ads', 'google ads', 'tiktok', 'linkedin ads', 'twitter ads'] },
+        { category: 'project', tools: ['jira', 'asana', 'trello', 'monday', 'notion', 'confluence'] },
+        { category: 'marketing', tools: ['hubspot', 'salesforce', 'marketo', 'mailchimp', 'crm'] }
     ];
     
-    toolPatterns.forEach(({ pattern, category }) => {
-        const matches = jdText.match(pattern) || [];
-        matches.forEach(match => {
-            requirements.tools.push({ name: match.trim(), category });
+    const tools = [];
+    toolPatterns.forEach(({ category, tools: toolList }) => {
+        toolList.forEach(tool => {
+            const regex = new RegExp(`\\b${tool.replace(/\s+/g, '\\s+')}\\b`, 'gi');
+            if (regex.test(jdText)) {
+                tools.push({ category, name: tool, required: true });
+            }
         });
     });
     
-    const uniqueTools = [];
-    const seen = new Set();
-    requirements.tools.forEach(tool => {
-        const key = tool.name.toLowerCase();
-        if (!seen.has(key)) {
-            seen.add(key);
-            uniqueTools.push(tool);
-        }
-    });
-    requirements.tools = uniqueTools;
+    const expMatch = jdText.match(/(\d+)\+?\s*(?:years?|anni)\s+(?:of\s+)?(?:experience|esperienza)/i);
+    const experienceYears = expMatch ? parseInt(expMatch[1]) : null;
     
-    const expMatch = jdLower.match(/(\d+)\+?\s*(?:years?|anni?)[\s\w]*(?:experience|esperienza)/i);
-    if (expMatch) {
-        requirements.experienceYears = parseInt(expMatch[1]);
-    }
+    const hardSkills = [];
+    const skillKeywords = ['seo', 'sem', 'ppc', 'crm', 'analytics', 'data analysis', 'project management', 
+                          'stakeholder management', 'budget management', 'media planning'];
     
-    const hardSkillsPatterns = [
-        { pattern: /media planning|media strategy|media buying/gi, skill: 'Media Planning' },
-        { pattern: /budget management|budget allocation/gi, skill: 'Budget Management' },
-        { pattern: /performance analysis|performance monitoring/gi, skill: 'Performance Analysis' },
-        { pattern: /data analysis|data-driven/gi, skill: 'Data Analysis' },
-        { pattern: /campaign optimization|campaign management/gi, skill: 'Campaign Optimization' }
-    ];
-    
-    hardSkillsPatterns.forEach(({ pattern, skill }) => {
-        if (pattern.test(jdText)) {
-            requirements.hardSkills.push(skill);
+    skillKeywords.forEach(skill => {
+        if (new RegExp(`\\b${skill}\\b`, 'i').test(jdText)) {
+            hardSkills.push(skill);
         }
     });
     
-    const softSkillsPatterns = [
-        { pattern: /team\s*(?:work|collaboration)/gi, skill: 'Team Collaboration' },
-        { pattern: /communication/gi, skill: 'Communication' },
-        { pattern: /problem\s*solving/gi, skill: 'Problem Solving' },
-        { pattern: /leadership/gi, skill: 'Leadership' }
-    ];
+    const softSkills = [];
+    const softKeywords = ['communication', 'leadership', 'team collaboration', 'problem solving', 
+                         'analytical thinking', 'creativity', 'adaptability'];
     
-    softSkillsPatterns.forEach(({ pattern, skill }) => {
-        if (pattern.test(jdText)) {
-            requirements.softSkills.push(skill);
+    softKeywords.forEach(skill => {
+        if (new RegExp(`\\b${skill}\\b`, 'i').test(jdText)) {
+            softSkills.push(skill);
         }
     });
     
-    requirements.softSkills = [...new Set(requirements.softSkills)];
-    requirements.hardSkills = [...new Set(requirements.hardSkills)];
-    
-    return requirements;
+    return {
+        tools,
+        experienceYears,
+        hardSkills,
+        softSkills
+    };
 }
 
+// ============================================
+// COMPETITIVE ANALYSIS
+// ============================================
+function generateCompetitiveAnalysis(jdText, cvProfile) {
+    const reqs = extractRequirements(jdText);
+    
+    const profileYears = cvProfile.yearsExp || 0;
+    const requiredYears = reqs.experienceYears || 0;
+    const experienceGap = requiredYears > 0 
+        ? Math.min(100, Math.round((profileYears / requiredYears) * 100))
+        : 100;
+    
+    const requiredTools = reqs.tools.map(t => t.name.toLowerCase());
+    const profileTools = cvProfile.coreSkills.map(s => s.toLowerCase());
+    
+    const matchedTools = requiredTools.filter(tool =>
+        profileTools.some(skill => skill.includes(tool) || tool.includes(skill))
+    );
+    
+    const toolsCoverage = requiredTools.length > 0
+        ? Math.round((matchedTools.length / requiredTools.length) * 100)
+        : 100;
+    
+    const jdLower = jdText.toLowerCase();
+    const profileIndustries = cvProfile.industries.map(i => i.toLowerCase());
+    
+    let industryFit = 0;
+    profileIndustries.forEach(industry => {
+        if (jdLower.includes(industry)) {
+            industryFit += 30;
+        }
+    });
+    industryFit = Math.min(100, industryFit + 40);
+    
+    const strengths = [];
+    const weaknesses = [];
+    const positioning = [];
+    
+    if (experienceGap >= 80) {
+        strengths.push(`Experience: ${profileYears}+ years meets/exceeds requirement`);
+    } else if (experienceGap >= 60) {
+        strengths.push(`Solid ${profileYears} years experience in digital domain`);
+    }
+    
+    if (cvProfile.industries && cvProfile.industries.length > 0) {
+        strengths.push(`Industry experience: ${cvProfile.industries.join(', ')}`);
+    }
+    
+    if (toolsCoverage >= 70) {
+        strengths.push(`Strong tools coverage (${matchedTools.length}/${requiredTools.length} matched)`);
+    } else if (toolsCoverage >= 50) {
+        strengths.push(`Partial tools coverage (${matchedTools.length}/${requiredTools.length} matched)`);
+        weaknesses.push(`Tool gap: ${requiredTools.length - matchedTools.length} tools to highlight or learn`);
+    } else if (requiredTools.length > 0) {
+        weaknesses.push(`Significant tool gap (${toolsCoverage}% coverage)`);
+        const missingTools = requiredTools.filter(tool => !matchedTools.includes(tool));
+        weaknesses.push(`Missing tools: ${missingTools.slice(0, 3).join(', ')}`);
+    }
+    
+    if (industryFit < 60) {
+        weaknesses.push('Limited direct industry experience for this role');
+        positioning.push('Frame existing experience as transferable skills');
+    }
+    
+    positioning.push('Lead with seniority and proven track record');
+    positioning.push('Emphasize data-driven approach and analytical mindset');
+    
+    if (cvProfile.aiCertifications && cvProfile.aiCertifications.length > 0) {
+        positioning.push('Highlight AI/automation skills as competitive differentiator');
+    }
+    
+    const overallScore = Math.round((experienceGap + toolsCoverage + industryFit) / 3);
+    
+    let competitivenessLevel = '';
+    if (overallScore >= 80) {
+        competitivenessLevel = 'VERY COMPETITIVE';
+    } else if (overallScore >= 70) {
+        competitivenessLevel = 'COMPETITIVE';
+    } else if (overallScore >= 60) {
+        competitivenessLevel = 'MODERATELY COMPETITIVE';
+    } else {
+        competitivenessLevel = 'CHALLENGING';
+    }
+    
+    return {
+        overall: overallScore,
+        competitivenessLevel,
+        experienceMatch: experienceGap,
+        toolsCoverage,
+        industryFit,
+        strengths,
+        weaknesses,
+        positioning
+    };
+}
+
+function getCompetitivenessLevel(score) {
+    if (score >= 80) {
+        return { label: 'VERY COMPETITIVE', color: '#4caf50', icon: '🎯' };
+    } else if (score >= 70) {
+        return { label: 'COMPETITIVE', color: '#8bc34a', icon: '✅' };
+    } else if (score >= 60) {
+        return { label: 'MODERATELY COMPETITIVE', color: '#ff9800', icon: '⚠️' };
+    } else {
+        return { label: 'CHALLENGING', color: '#f44336', icon: '❌' };
+    }
+}
+
+// ============================================
+// PDF TEXT EXTRACTION
+// ============================================
+function extractTextFromPDF(arrayBuffer) {
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let text = '';
+    
+    for (let i = 0; i < uint8Array.length - 1; i++) {
+        const char = uint8Array[i];
+        if ((char >= 32 && char <= 126) || 
+            (char >= 192 && char <= 255) ||
+            char === 10 || char === 13) {
+            text += String.fromCharCode(char);
+        } else {
+            text += ' ';
+        }
+    }
+    
+    text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
+    text = text.replace(/\s+/g, ' ');
+    text = text.replace(/(.)\1{4,}/g, '$1$1$1');
+    
+    return text.trim();
+}
+
+// ============================================
+// ABOUT ME CV SECTION - ENRICHED
+// ============================================
+function generateCVAboutSectionMartino(jdText, profile) {
+    const reqs = extractRequirements(jdText);
+    const jdLower = jdText.toLowerCase();
+    
+    let about = `Digital Media Planner with over ${profile.yearsExp} years of experience `;
+    
+    const focusAreas = [];
+    if (/crm|customer\s+relationship|customer\s+base/i.test(jdText)) focusAreas.push("customer relationship management");
+    if (/retention|churn|loyalty|fidelizzazione/i.test(jdText)) focusAreas.push("retention strategies");
+    if (/acquisition|lead\s+generation|new\s+customer/i.test(jdText)) focusAreas.push("customer acquisition");
+    if (/segmentation|clustering|personalization/i.test(jdText)) focusAreas.push("customer segmentation");
+    if (/product.*management|product.*launch|roadmap/i.test(jdText)) focusAreas.push("product management");
+    if (/media\s+(?:strategy|planning|buying)/i.test(jdText)) focusAreas.push("media strategy");
+    if (/performance|optimization|kpi/i.test(jdText)) focusAreas.push("performance optimization");
+    
+    if (focusAreas.length === 0) {
+        focusAreas.push("digital strategy", "campaign optimization");
+    }
+    
+    about += `in ${focusAreas.slice(0, 2).join(' and ')} for international brands`;
+    
+    const relevantBrands = profile.brandsManaged.slice(0, 3).join(', ');
+    about += ` including ${relevantBrands}. `;
+    
+    const coreCompetencies = [];
+    if (profile.coreSkills.some(s => /data|analytics/i.test(s))) {
+        coreCompetencies.push("data-driven decision making");
+    }
+    if (profile.coreSkills.some(s => /budget|financial/i.test(s))) {
+        coreCompetencies.push("budget management");
+    }
+    if (profile.coreSkills.some(s => /strategy|planning/i.test(s))) {
+        coreCompetencies.push("strategic planning");
+    }
+    
+    if (coreCompetencies.length > 0) {
+        about += `Skilled in ${coreCompetencies.join(', ')}, `;
+    }
+    
+    const mentionedTools = [];
+    if (reqs.tools.length > 0) {
+        const matchedTools = reqs.tools.filter(tool =>
+            profile.coreSkills.some(skill => 
+                skill.toLowerCase().includes(tool.name.toLowerCase()) ||
+                tool.name.toLowerCase().includes(skill.toLowerCase())
+            )
+        );
+        if (matchedTools.length > 0) {
+            mentionedTools.push(...matchedTools.slice(0, 3).map(t => t.name));
+        }
+    }
+    
+    if (mentionedTools.length === 0) {
+        const defaultTools = profile.coreSkills.filter(s => 
+            /power bi|analytics|excel|looker/i.test(s)
+        ).slice(0, 3);
+        mentionedTools.push(...defaultTools);
+    }
+    
+    if (mentionedTools.length > 0) {
+        about += `utilizing tools such as ${mentionedTools.join(', ')}. `;
+    }
+    
+    if (profile.aiCertifications && profile.aiCertifications.length > 0) {
+        about += `Complemented by advanced AI and automation skills to enhance marketing effectiveness.`;
+    } else {
+        about += `Specialized in leveraging technology to drive measurable business results.`;
+    }
+    
+    return about.trim();
+}
+
+// ============================================
+// EMAIL EXTRACTION
+// ============================================
+function extractEmailFromJD(jdText) {
+    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const emails = jdText.match(emailPattern) || [];
+    
+    const filtered = emails.filter(email => {
+        const domain = email.split('@')[1].toLowerCase();
+        return !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'].includes(domain);
+    });
+    
+    return filtered[0] || '';
+}
+// Part 3: Cover Letter Generation (6 variants bilingual) + Detailed CV Suggestions
+
+// ============================================
+// COVER LETTER VARIANTS - BILINGUAL
+// ============================================
+function generateCoverLetterVariantsBilingual(company, role, jdText, profile) {
+    return {
+        standard_it: generateStandardCoverLetterIT(company, role, jdText, profile),
+        bold_it: generateBoldCoverLetterIT(company, role, jdText, profile),
+        storytelling_it: generateStorytellingCoverLetterIT(company, role, jdText, profile),
+        standard_en: generateStandardCoverLetterEN(company, role, jdText, profile),
+        bold_en: generateBoldCoverLetterEN(company, role, jdText, profile),
+        storytelling_en: generateStorytellingCoverLetterEN(company, role, jdText, profile)
+    };
+}
+
+function generateStandardCoverLetterIT(company, role, jdText, profile) {
+    const industry = detectIndustry(jdText);
+    const isProduct = /product.*management|product.*owner/i.test(role);
+    const isMedia = /media|advertising|marketing/i.test(role);
+    
+    let letter = `Oggetto: Candidatura per ${role} - ${company}
+
+Gentile Team Selezione ${company},
+
+desidero candidarmi per la posizione di ${role}. Con oltre ${profile.yearsExp} anni di esperienza in digital marketing e gestione di campagne per brand internazionali, ritengo di poter portare un contributo concreto al vostro team.
+
+Nel mio ruolo attuale di Digital Consultant presso UM Italia, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. L'esperienza diretta nell'analisi dei trend di mercato, nella collaborazione con team cross-funzionali (IT, Legali, Marketing) per portare prodotti digitali sul mercato, nella collaborazione con team cross-funzionali per garantire esecuzione ottimale delle campagne.
+
+Un aspetto che mi differenzia è l'integrazione di competenze in AI applicate al marketing, certificate attraverso corsi specializzati (AI for Marketing, Fastweb Digital Academy). Sono motivato dalla possibilità di contribuire agli obiettivi di ${company} e mettere a disposizione un approccio analitico e orientato ai risultati.
+
+Resto a disposizione per un colloquio conoscitivo.
+
+Cordiali saluti,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateBoldCoverLetterIT(company, role, jdText, profile) {
+    let letter = `OGGETTO: ${role} @ ${company} - Candidatura ${profile.name}
+
+📊 NUMERI CHE CONTANO
+
+• ${profile.yearsExp}+ anni ottimizzando campagne per brand internazionali (${profile.brandsManaged.slice(0, 3).join(', ')})
+• End-to-end media strategies: dalla strategia annuale al tracking KPI post-lancio
+• Data-driven: Power BI dashboards, implementando ottimizzazioni che hanno portato miglioramenti medi del 25%
+
+🎯 COSA FAREI PER ${company.toUpperCase()}
+
+✓ Porterei esperienza diretta in product launch e strategie go-to-market
+✓ Analisi continua di trend e metriche per decisioni data-informed
+✓ Approccio cross-funzionale già testato in contesti enterprise
+
+💡 IL MIO VANTAGGIO
+
+AI per marketing non è futuro, è presente. Certificato in AI for Marketing (Fastweb Digital Academy), Prompt Engineering, e tool avanzati. Questo significa automation, insights più veloci, decisioni migliori.
+
+Disponibile per call conoscitiva.
+
+Best,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateStorytellingCoverLetterIT(company, role, jdText, profile) {
+    let letter = `Oggetto: Candidatura per ${role} - Una storia di dati, creatività e risultati
+
+Gentile team ${company},
+
+quando Honda mi ha chiesto di lanciare la nuova gamma ibrida in Italia, non si trattava solo di media planning. Era costruire una narrativa che connettesse innovazione tecnologica con sostenibilità, traducendo feature tecniche in benefit emozionali, e misurare ogni touchpoint del customer journey.
+
+Sono ${profile.name}, Digital Consultant con ${profile.yearsExp} anni nel mondo delle strategie digitali per brand internazionali. La mia carriera è stata guidata da una curiosità: come trasformare dati complessi in decisioni che muovono i mercati?
+
+In ${company}, vedo l'opportunità di applicare questa stessa filosofia al ruolo di ${role}. L'esperienza in automotive, fashion e medical device mi ha insegnato che ogni settore ha dinamiche uniche, ma il metodo rimane: ascoltare i dati, collaborare cross-functionally, iterare rapidamente.
+
+Ciò che mi distingue? L'integrazione tra marketing tradizionale e AI. Non parlo di buzzword, ma di certificazioni concrete (AI for Marketing, Prompt Engineering) che uso quotidianamente per automazioni, analisi predittive e ottimizzazioni creative.
+
+Resto a disposizione per raccontarvi come posso contribuire agli obiettivi di ${company}.
+
+Cordialmente,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateStandardCoverLetterEN(company, role, jdText, profile) {
+    const industry = detectIndustry(jdText);
+    
+    let letter = `Subject: Application for ${role} - ${company}
+
+Dear ${company} Hiring Team,
+
+I am writing to express my interest in the ${role} position. With over ${profile.yearsExp} years of experience in digital marketing and performance analysis for international brands, I am confident in my ability to contribute meaningfully to your team.
+
+In my current role as Digital Consultant at UM Italia, I develop end-to-end media strategies and manage product launches for automotive, fashion, and medical device clients. My experience includes defining annual digital roadmaps, analyzing market trends, and collaborating with cross-functional teams (IT, Legal, Marketing) to bring digital products to market.
+
+What sets me apart is my integration of AI skills into marketing workflows, certified through specialized courses (AI for Marketing, Fastweb Digital Academy, Prompt Engineering). I am motivated by the opportunity to contribute to ${company}'s objectives with a data-driven, results-oriented approach.
+
+I would welcome the opportunity to discuss how my background aligns with your needs.
+
+Best regards,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateBoldCoverLetterEN(company, role, jdText, profile) {
+    let letter = `SUBJECT: ${role} @ ${company} - ${profile.name} Application
+
+📊 NUMBERS THAT MATTER
+
+• ${profile.yearsExp}+ years optimizing campaigns for international brands (${profile.brandsManaged.slice(0, 3).join(', ')})
+• End-to-end media strategies: from annual planning to post-launch KPI tracking
+• Data-driven: Power BI dashboards, implementing optimizations resulting in 25% average improvement
+
+🎯 WHAT I'D BRING TO ${company.toUpperCase()}
+
+✓ Hands-on product launch and go-to-market strategy experience
+✓ Continuous trend and metrics analysis for data-informed decisions
+✓ Cross-functional approach tested in enterprise contexts
+
+💡 MY EDGE
+
+AI for marketing isn't future, it's now. Certified in AI for Marketing (Fastweb Digital Academy), Prompt Engineering, and advanced tools. This means automation, faster insights, better decisions.
+
+Available for intro call.
+
+Best,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+
+function generateStorytellingCoverLetterEN(company, role, jdText, profile) {
+    let letter = `Subject: Application for ${role} - A story of data, creativity, and results
+
+Dear ${company} team,
+
+When Honda asked me to launch their new hybrid lineup in Italy, it wasn't just about media planning. It was about building a narrative connecting technological innovation with sustainability, translating technical features into emotional benefits, and measuring every customer journey touchpoint.
+
+I'm ${profile.name}, Digital Consultant with ${profile.yearsExp} years in digital strategy for international brands. My career has been guided by curiosity: how to transform complex data into market-moving decisions?
+
+At ${company}, I see the opportunity to apply this same philosophy to the ${role} position. My experience across automotive, fashion, and medical device has taught me that every sector has unique dynamics, but the method remains: listen to data, collaborate cross-functionally, iterate rapidly.
+
+What sets me apart? The integration of traditional marketing with AI. Not buzzwords, but concrete certifications (AI for Marketing, Prompt Engineering) that I use daily for automation, predictive analytics, and creative optimization.
+
+I'd welcome the chance to discuss how I can contribute to ${company}'s goals.
+
+Best regards,
+${profile.name}
+${profile.email} | ${profile.phone}`;
+    
+    return letter;
+}
+// ============================================
+// AI-GENERATED COVER LETTER (API)
+// ============================================
+async function generateCoverLetterWithAI(company, role, jdText, profile) {
+    try {
+        console.log('🤖 Generating AI cover letter via Netlify function...');
+        
+        const prompt = `You are an expert career consultant. Generate a professional cover letter in Italian for this application.
+
+CANDIDATE PROFILE:
+- Name: ${profile.name}
+- Current Role: ${profile.currentRole} at ${profile.company}
+- Years of Experience: ${profile.yearsExp}
+- Core Skills: ${profile.coreSkills.slice(0, 10).join(', ')}
+- Brands Managed: ${profile.brandsManaged.join(', ')}
+- Industries: ${profile.industries.join(', ')}
+${profile.aiCertifications ? `- AI Certifications: ${profile.aiCertifications.join(', ')}` : ''}
+
+TARGET POSITION:
+- Company: ${company}
+- Role: ${role}
+- Job Description (first 1500 chars): ${jdText.substring(0, 1500)}
+
+REQUIREMENTS:
+1. Write in ITALIAN language
+2. Professional corporate tone
+3. Length: 250-300 words
+4. Structure:
+   - Opening: Express interest and mention ${profile.yearsExp}+ years experience
+   - Body: Connect candidate's experience to specific JD requirements
+   - Highlight transferable skills even if industry different
+   - Mention concrete achievements with brands managed
+   - Reference AI skills as competitive advantage if relevant to role
+   - Closing: Express enthusiasm and availability
+5. Be SPECIFIC: Reference actual keywords from JD
+6. Avoid generic phrases
+7. Show understanding of company's needs based on JD
+8. End with: "Cordiali saluti, ${profile.name}, ${profile.email} | ${profile.phone}"
+
+Generate ONLY the cover letter text, no additional commentary.`;
+
+        const response = await fetch('/.netlify/functions/validate-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: prompt,
+                maxTokens: 800
+            })
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ AI cover letter generation failed, using template fallback');
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.coverLetter && data.coverLetter.length > 100) {
+            console.log('✅ AI cover letter generated successfully');
+            return data.coverLetter;
+        }
+        
+        console.warn('⚠️ AI response invalid, using template fallback');
+        return null;
+        
+    } catch (error) {
+        console.error('❌ AI cover letter error:', error);
+        return null;
+    }
+}
+// ============================================
+// DETAILED CV SUGGESTIONS - CONDITIONAL
+// ============================================
+function generateDetailedCVSuggestions(jdText, reqs, profileSkills, industry, profile) {
+    const template = getIndustryTemplate(industry);
+    const jdLower = jdText.toLowerCase();
+    
+    const suggestions = {
+        workExperienceBullets: [],
+        skillsToHighlight: [],
+        skillsToAdd: [],
+        keywordSuggestions: {
+            highPriority: [],
+            mediumPriority: [],
+            lowPriority: []
+        },
+        gapAnalysis: [],
+        atsKeywordChecklist: {},
+        predictedScore: ''
+    };
+    
+    // CONDITIONAL WORK EXPERIENCE SUGGESTIONS
+    if (/crm|customer\s+relationship/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            "✏️ If you've used CRM platforms, add: \"Managed customer data and segmentation using CRM tools to personalize marketing campaigns\"",
+            "⚠️ JD emphasizes CRM - if you have experience with Salesforce, HubSpot, or similar, highlight it"
+        );
+    }
+    
+    if (/segmentation|clustering|personalization/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            "✏️ If you've segmented customers by behavior/demographics, add: \"Developed customer segmentation strategies based on behavioral data, increasing campaign relevance\"",
+            "💡 Your Power BI/GA4 experience counts as segmentation work - frame it this way"
+        );
+    }
+    
+    if (/vip|high.value|premium/i.test(jdText)) {
+        if (profile.brandsManaged.some(b => /levi|acuvue|honda/i.test(b))) {
+            suggestions.workExperienceBullets.push(
+                `✏️ If you managed premium/high-value clients at ${profile.brandsManaged[0]}, frame as: "Oversaw VIP customer programs with dedicated support and personalized offerings"`
+            );
+        } else {
+            suggestions.workExperienceBullets.push(
+                "⚠️ JD requires VIP management - do you have experience with high-value client relationships? Add if relevant."
+            );
+        }
+    }
+    
+    if (/retention|churn|loyalty/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            "✏️ If you ran campaigns to reduce churn, add: \"Implemented retention strategies through targeted re-engagement campaigns, reducing churn by X%\"",
+            "💡 Your campaign optimization work likely improved retention - quantify the impact"
+        );
+    }
+    
+    if (/acquisition|lead.*generation/i.test(jdText)) {
+        suggestions.workExperienceBullets.push(
+            "✏️ If campaigns drove new customer acquisition, add: \"Designed acquisition campaigns across paid channels, achieving X% increase in new customer sign-ups\"",
+            `💡 Your Meta/Google Ads experience (${profile.brandsManaged.join(', ')}) is acquisition work - frame it explicitly`
+        );
+    }
+    
+    // Generic bullets if not enough
+    if (suggestions.workExperienceBullets.length < 3) {
+        suggestions.workExperienceBullets.push(
+            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} performance marketing campaigns across Meta, Google, TikTok with clear KPIs and ROI targets`,
+            `${template.verbs[3].charAt(0).toUpperCase() + template.verbs[3].slice(1)} in-depth analysis using GA4 and Power BI dashboards to identify optimization opportunities`
+        );
+    }
+    
+    // SKILLS TO HIGHLIGHT
+    const toolsInProfile = profileSkills.filter(skill => 
+        reqs.tools.some(tool => 
+            skill.toLowerCase().includes(tool.name.toLowerCase())
+        )
+    );
+    
+    if (toolsInProfile.length > 0) {
+        suggestions.skillsToHighlight = toolsInProfile.slice(0, 6);
+    }
+    
+    // SKILLS TO ADD
+    const missingTools = reqs.tools.filter(tool =>
+        !profileSkills.some(skill =>
+            skill.toLowerCase().includes(tool.name.toLowerCase())
+        )
+    );
+    
+    if (missingTools.length > 0) {
+        suggestions.skillsToAdd = missingTools.slice(0, 5).map(tool => ({
+            name: tool.name,
+            suggestion: "⚠️ JD mentions this - add ONLY if you have genuine experience"
+        }));
+    }
+    
+    // KEYWORD SUGGESTIONS
+    const allKeywords = extractKeywordsFromJD(jdText);
+    
+    allKeywords.forEach(kw => {
+        const count = kw.count;
+        const score = kw.score;
+        
+        if (count >= 5 || score > 2.0) {
+            suggestions.keywordSuggestions.highPriority.push(kw.word);
+        } else if (count >= 3 || score > 1.5) {
+            suggestions.keywordSuggestions.mediumPriority.push(kw.word);
+        } else if (count >= 2) {
+            suggestions.keywordSuggestions.lowPriority.push(kw.word);
+        }
+    });
+    
+    suggestions.keywordSuggestions.highPriority = suggestions.keywordSuggestions.highPriority.slice(0, 5);
+    suggestions.keywordSuggestions.mediumPriority = suggestions.keywordSuggestions.mediumPriority.slice(0, 5);
+    suggestions.keywordSuggestions.lowPriority = suggestions.keywordSuggestions.lowPriority.slice(0, 5);
+    
+    // GAP ANALYSIS
+    const criticalGaps = [];
+    
+    if (/crm/i.test(jdText) && !profileSkills.some(s => /crm/i.test(s))) {
+        criticalGaps.push({
+            gap: "CRM Platform Management (Salesforce, HubSpot)",
+            analysis: "Do you have this? If yes, ADD IT to CV. If no, consider if quickly learnable.",
+            positioning: "If you've used any customer database/analytics tool, you can frame as 'CRM data management'"
+        });
+    }
+    
+    if (/vip|premium|high.value/i.test(jdText)) {
+        criticalGaps.push({
+            gap: "VIP/High-Value Customer Management",
+            analysis: `Have you managed premium clients at ${profile.brandsManaged.join('/')}?`,
+            positioning: "Frame luxury brand experience (Levi's, Honda) as 'premium customer engagement' - transferable skill"
+        });
+    }
+    
+    const industryMatch = jdText.match(/\b(gaming|betting|casino|lottery|gambling)\b/gi);
+    if (industryMatch && !profile.industries.some(i => /gaming|betting/i.test(i))) {
+        criticalGaps.push({
+            gap: `${industryMatch[0]} Industry Knowledge`,
+            analysis: "You don't have direct industry experience.",
+            positioning: `STRATEGY: Position automotive/fashion as "premium consumer engagement" - emphasize transferable skills (data analysis, campaign optimization, customer insights)`
+        });
+    }
+    
+    suggestions.gapAnalysis = criticalGaps;
+    
+    // ATS CHECKLIST
+    const keywordCategories = {
+        'Role/Function': [],
+        'Skills/Competencies': [],
+        'Tools/Platforms': [],
+        'Soft Skills': []
+    };
+    
+    if (/digital marketing/i.test(jdText)) keywordCategories['Role/Function'].push('Digital Marketing');
+    if (/product.*management/i.test(jdText)) keywordCategories['Role/Function'].push('Product Management');
+    if (/media.*planning/i.test(jdText)) keywordCategories['Role/Function'].push('Media Planning');
+    
+    if (reqs.hardSkills.length > 0) {
+        keywordCategories['Skills/Competencies'] = reqs.hardSkills.slice(0, 6);
+    }
+    
+    if (reqs.tools.length > 0) {
+        keywordCategories['Tools/Platforms'] = reqs.tools.slice(0, 6).map(t => t.name);
+    }
+    
+    if (reqs.softSkills.length > 0) {
+        keywordCategories['Soft Skills'] = reqs.softSkills.slice(0, 4);
+    }
+    
+    suggestions.atsKeywordChecklist = keywordCategories;
+    
+    return suggestions;
+}
+
+function extractKeywordsFromJD(jdText) {
+    const words = jdText.toLowerCase().match(/\b[a-zàèéìòù]{4,}\b/g) || [];
+    const counts = {};
+    
+    words.forEach(word => {
+        if (!stopwords.has(word)) {
+            counts[word] = (counts[word] || 0) + 1;
+        }
+    });
+    
+    return Object.entries(counts)
+        .map(([word, count]) => ({
+            word,
+            count,
+            score: calculateTFIDF(word, jdText)
+        }))
+        .filter(kw => kw.count >= 2)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 20);
+}
+// Part 4: Email System, ATS Scoring (Fuzzy Match), Main Generation Function
+
+// ============================================
+// ATS SCORE CALCULATOR - FUZZY MATCHING
+// ============================================
 function calculateATSScore(documentText, jdKeywords) {
     const matches = [];
     const missing = [];
     
     jdKeywords.forEach(kw => {
-        const regex = new RegExp(`\\b${kw.word.replace(/\s+/g, '\\s+')}\\b`, 'i');
-        if (regex.test(documentText)) {
+        const word = kw.word.toLowerCase();
+        const docLower = documentText.toLowerCase();
+        
+        // Exact match
+        const exactRegex = new RegExp(`\\b${word.replace(/\s+/g, '\\s+')}\\b`, 'i');
+        if (exactRegex.test(docLower)) {
             matches.push(kw.word);
-        } else {
-            missing.push(kw.word);
+            return;
         }
+        
+        // Fuzzy match for compound keywords
+        if (word.includes(' ')) {
+            const parts = word.split(' ').filter(p => p.length > 3);
+            const allPartsMatch = parts.every(part => 
+                new RegExp(`\\b${part}\\b`, 'i').test(docLower)
+            );
+            if (allPartsMatch) {
+                matches.push(kw.word);
+                return;
+            }
+        }
+        
+        // Partial match
+        if (word.length > 4) {
+            const partialRegex = new RegExp(`\\b\\w*${word}\\w*\\b`, 'i');
+            if (partialRegex.test(docLower)) {
+                matches.push(kw.word);
+                return;
+            }
+        }
+        
+        missing.push(kw.word);
     });
     
     const score = jdKeywords.length > 0 
@@ -824,1524 +1121,667 @@ function calculateATSScore(documentText, jdKeywords) {
 }
 
 // ============================================
-// COMPETITIVE ANALYSIS - FIXED
+// EMAIL SYSTEM
 // ============================================
-function generateCompetitiveAnalysis(cvProfile, jdRequirements) {
-    const analysis = {
-        experienceGap: 0,
-        toolsCoverage: 0,
-        industryFit: 0,
-        overallCompetitiveness: 0,
-        strengths: [],
-        weaknesses: [],
-        positioning: []
-    };
-    
-    if (jdRequirements.experienceYears) {
-        const ratio = cvProfile.yearsExp / jdRequirements.experienceYears;
-        if (ratio >= 1.5) {
-            analysis.experienceGap = 100;
-            analysis.strengths.push(`Esperienza superiore (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
-            analysis.positioning.push('Lead with seniority and proven track record');
-        } else if (ratio >= 1) {
-            analysis.experienceGap = 80;
-            analysis.strengths.push(`Esperienza allineata (${cvProfile.yearsExp} anni)`);
-        } else if (ratio >= 0.75) {
-            analysis.experienceGap = 60;
-            analysis.weaknesses.push(`Esperienza leggermente sotto (${cvProfile.yearsExp} anni vs ${jdRequirements.experienceYears} richiesti)`);
-            analysis.positioning.push('Compensate with specific achievements and skills');
-        } else {
-            analysis.experienceGap = 40;
-            analysis.weaknesses.push(`Gap esperienza significativo`);
-            analysis.positioning.push('Highlight rapid learning and relevant projects');
-        }
-    } else {
-        analysis.experienceGap = 70;
+async function previewEmail(analysisId) {
+    const analysis = StorageManager.getAnalysis(analysisId);
+    if (!analysis) {
+        alert('Analysis not found');
+        return;
     }
     
-    if (jdRequirements.tools && jdRequirements.tools.length > 0) {
-        const matchedTools = jdRequirements.tools.filter(tool =>
-            cvProfile.coreSkills.some(skill =>
-                skill.toLowerCase().includes(tool.name.toLowerCase()) ||
-                tool.name.toLowerCase().includes(skill.toLowerCase())
-            )
-        );
-        
-        analysis.toolsCoverage = Math.round((matchedTools.length / jdRequirements.tools.length) * 100);
-        
-        if (analysis.toolsCoverage >= 80) {
-            analysis.strengths.push(`Ottima copertura tool (${analysis.toolsCoverage}%)`);
-        } else if (analysis.toolsCoverage >= 60) {
-            analysis.strengths.push(`Buona copertura tool (${analysis.toolsCoverage}%)`);
-            const missingTools = jdRequirements.tools.filter(tool =>
-                !matchedTools.some(m => m.name === tool.name)
-            ).slice(0, 3);
-            if (missingTools.length > 0) {
-                analysis.weaknesses.push(`Tool da aggiungere: ${missingTools.map(t => t.name).join(', ')}`);
-                analysis.positioning.push(`Mention transferable skills for ${missingTools[0].name}`);
-            }
-        } else {
-            analysis.weaknesses.push(`Gap tool significativo (${analysis.toolsCoverage}%)`);
-            analysis.positioning.push('Focus on core competencies and learning agility');
-        }
-    } else {
-        analysis.toolsCoverage = 70;
-    }
-    
-    analysis.industryFit = 75;
-    if (cvProfile.industries && cvProfile.industries.length > 0) {
-        analysis.strengths.push(`Esperienza industry: ${cvProfile.industries.join(', ')}`);
-        analysis.positioning.push('Leverage industry-specific knowledge');
-    }
-    
-    analysis.overallCompetitiveness = Math.round(
-        (analysis.experienceGap * 0.3) +
-        (analysis.toolsCoverage * 0.4) +
-        (analysis.industryFit * 0.3)
-    );
-    
-    return analysis;
-}
-
-function getCompetitivenessLevel(score) {
-    if (score >= 85) return { level: 'VERY STRONG', color: '#28a745', icon: '🌟' };
-    if (score >= 70) return { level: 'COMPETITIVE', color: '#667eea', icon: '✅' };
-    if (score >= 55) return { level: 'MODERATE', color: '#ffa500', icon: '⚠️' };
-    return { level: 'WEAK', color: '#d32f2f', icon: '❌' };
-}
-
-// ============================================
-// PDF PARSING (Enhanced)
-// ============================================
-async function extractTextFromPDF(arrayBuffer) {
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let text = '';
-    let buffer = [];
-    
-    for (let i = 0; i < uint8Array.length; i++) {
-        const byte = uint8Array[i];
-        
-        if (byte >= 32 && byte <= 126) {
-            buffer.push(String.fromCharCode(byte));
-        } else if (byte === 10 || byte === 13) {
-            if (buffer.length > 0) {
-                text += buffer.join('') + '\n';
-                buffer = [];
-            }
-        } else if (byte === 32) {
-            buffer.push(' ');
-        } else if (byte >= 128 && byte <= 255) {
-            const char = String.fromCharCode(byte);
-            if (/[àèéìòù]/.test(char)) {
-                buffer.push(char);
-            }
-        }
-    }
-    
-    if (buffer.length > 0) {
-        text += buffer.join('');
-    }
-    
-    text = text.replace(/\x00/g, '');
-    text = text.replace(/[^\x20-\x7E\n\r\tàèéìòù]/g, ' ');
-    text = text.replace(/\s{3,}/g, '  ');
-    text = text.replace(/\n{3,}/g, '\n\n');
-    text = text.replace(/([a-z])([A-Z])/g, '$1 $2');
-    text = text.replace(/(\d)([A-Za-z])/g, '$1 $2');
-    
-    return text.trim();
-}
-
-// ============================================
-// DETAILED CV SUGGESTIONS (Industry-Adapted)
-// ============================================
-function generateDetailedCVSuggestions(jdText, reqs, profileSkills, industry) {
-    const template = getIndustryTemplate(industry);
-    const suggestions = {
-        workExperienceBullets: [],
-        skillsToHighlight: [],
-        skillsToAdd: [],
-        atsKeywordChecklist: [],
-        predictedScore: ''
-    };
-    
-    const verb = template.verbs[0];
-    
-    if (/product/i.test(jdText)) {
-        suggestions.workExperienceBullets.push(
-            `${verb.charAt(0).toUpperCase() + verb.slice(1)} product launch strategies for new digital offerings across automotive and fashion clients`,
-            `Conducted competitive analysis and market research to inform product roadmap decisions`,
-            `Monitored post-launch KPIs using Power BI dashboards, implementing optimizations that resulted in 25% average improvement`
-        );
-    } else if (/media/i.test(jdText)) {
-        suggestions.workExperienceBullets.push(
-            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} end-to-end media strategies across Meta, Google, TikTok for international brands`,
-            `${template.verbs[1].charAt(0).toUpperCase() + template.verbs[1].slice(1)} multi-million euro budgets, negotiating with agencies to optimize CPM and CPA`,
-            `${template.verbs[2].charAt(0).toUpperCase() + template.verbs[2].slice(1)} integrated measurement framework using GA4 and Power BI`
-        );
-    } else {
-        suggestions.workExperienceBullets.push(
-            `${template.verbs[0].charAt(0).toUpperCase() + template.verbs[0].slice(1)} performance marketing campaigns, optimizing towards KPIs including ROAS`,
-            `${template.verbs[3].charAt(0).toUpperCase() + template.verbs[3].slice(1)} in-depth analysis using GA4 and Power BI to identify optimization opportunities`,
-            `${template.verbs[4].charAt(0).toUpperCase() + template.verbs[4].slice(1)} A/B testing strategies resulting in measurable improvements`
-        );
-    }
-    
-    const toolsInProfile = profileSkills.filter(skill => 
-        reqs.tools.some(tool => 
-            skill.toLowerCase().includes(tool.name.toLowerCase())
-        )
-    );
-    
-    if (toolsInProfile.length > 0) {
-        suggestions.skillsToHighlight = toolsInProfile.slice(0, 6);
-    }
-    
-    const missingTools = reqs.tools.filter(tool =>
-        !profileSkills.some(skill =>
-            skill.toLowerCase().includes(tool.name.toLowerCase())
-        )
-    );
-    
-    if (missingTools.length > 0) {
-        suggestions.skillsToAdd = missingTools.slice(0, 5).map(tool => tool.name);
-    }
-    
-    const keywordCategories = {
-        'Role/Function': [],
-        'Skills/Competencies': [],
-        'Tools/Platforms': [],
-        'Soft Skills': []
-    };
-    
-    if (/digital marketing/i.test(jdText)) keywordCategories['Role/Function'].push('Digital marketing');
-    if (/product.*management/i.test(jdText)) keywordCategories['Role/Function'].push('Product management');
-    if (/media.*planning/i.test(jdText)) keywordCategories['Role/Function'].push('Media planning');
-    
-    if (reqs.hardSkills.length > 0) {
-        keywordCategories['Skills/Competencies'] = reqs.hardSkills.slice(0, 5);
-    }
-    
-    if (reqs.tools.length > 0) {
-        keywordCategories['Tools/Platforms'] = reqs.tools.slice(0, 6).map(t => t.name);
-    }
-    
-    if (reqs.softSkills.length > 0) {
-        keywordCategories['Soft Skills'] = reqs.softSkills.slice(0, 4);
-    }
-    
-    suggestions.atsKeywordChecklist = keywordCategories;
-    
-    const toolsMatch = reqs.tools.length > 0 
-        ? (toolsInProfile.length / reqs.tools.length) * 100 
-        : 100;
-    
-    if (toolsMatch >= 80) {
-        suggestions.predictedScore = "75-85% (molto buono)";
-    } else if (toolsMatch >= 60) {
-        suggestions.predictedScore = "65-75% (buono)";
-    } else {
-        suggestions.predictedScore = "55-65% (medio)";
-    }
-    
-    return suggestions;
-}
-
-function generateCVAboutSectionMartino(jdText) {
-    const reqs = extractRequirements(jdText);
-    
-    const focusAreas = [];
-    if (/media\s+(?:strategy|planning)/i.test(jdText)) focusAreas.push("media strategy and planning");
-    if (/performance|roi|kpi/i.test(jdText)) focusAreas.push("performance analysis");
-    if (/product/i.test(jdText)) focusAreas.push("product management");
-    if (/data|analytics/i.test(jdText)) focusAreas.push("data analysis");
-    
-    if (focusAreas.length === 0) focusAreas.push("digital strategy", "campaign optimization");
-    
-    let about = `Digital Media Planner with over ${martinoProfile.yearsExp} years of experience in ${focusAreas.slice(0, 2).join(' and ')} for international brands. `;
-    
-    if (reqs.tools.length > 0) {
-        const toolsToMention = reqs.tools.slice(0, 4).map(t => t.name).join(', ');
-        about += `Proficient in ${toolsToMention}, `;
-    }
-    
-    about += `specialized in optimizing omnichannel strategies and leveraging data-driven insights to improve marketing performance.`;
-    
-    return about.trim();
-}
-
-// Extract email from JD
-function extractEmailFromJD(jdText) {
-    const emailPattern = /[\w.-]+@[\w.-]+\.\w+/g;
-    const emails = jdText.match(emailPattern);
-    
-    if (emails && emails.length > 0) {
-        const corporateEmails = emails.filter(email => 
-            !email.includes('gmail') && 
-            !email.includes('yahoo') && 
-            !email.includes('hotmail') &&
-            !email.includes('outlook')
-        );
-        
-        return corporateEmails[0] || null;
-    }
-    return null;
-}
-// Job Application System V4.1 - Part 3
-// Cover Letter Generation - BILINGUAL (6 variants: IT + EN)
-
-// ============================================
-// COVER LETTER BILINGUE - 6 VARIANTS
-// ============================================
-
-function generateCoverLetterVariantsBilingual(jdText, company, role, location, profile, industry) {
-    const reqs = extractRequirements(jdText);
-    const template = getIndustryTemplate(industry);
-    
-    return {
-        standard_it: generateStandardCoverLetterIT(jdText, company, role, location, profile, reqs),
-        bold_it: generateBoldCoverLetterIT(jdText, company, role, location, profile, reqs, template),
-        storytelling_it: generateStorytellingCoverLetterIT(jdText, company, role, location, profile, reqs),
-        standard_en: generateStandardCoverLetterEN(jdText, company, role, location, profile, reqs),
-        bold_en: generateBoldCoverLetterEN(jdText, company, role, location, profile, reqs, template),
-        storytelling_en: generateStorytellingCoverLetterEN(jdText, company, role, location, profile, reqs)
-    };
-}
-
-// ===== ITALIANO =====
-
-function generateStandardCoverLetterIT(jdText, company, role, location, profile, reqs) {
-    const isProduct = /product|prodotto|roadmap|launch/i.test(jdText);
-    const isMedia = /media\s+(?:strategy|planning|buying)/i.test(jdText);
-    
-    let letter = `Oggetto: Candidatura per ${role} – ${location}
-
-Gentile Team Selezione ${company},
-
-desidero candidarmi per la posizione di ${role}. Con oltre ${profile.yearsExp} anni di esperienza in digital marketing e gestione di campagne per brand internazionali, ritengo di poter portare un contributo concreto al vostro team.`;
-    
-    if (isMedia) {
-        letter += `
-
-Nel mio ruolo attuale di ${profile.currentRole} presso ${profile.company}, gestisco strategie media end-to-end per brand come ${profile.brandsManaged.slice(0, 3).join(', ')}, coordinando agenzie media e partner digitali. Ho esperienza diretta nella pianificazione e acquisto media su piattaforme Meta, Google, TikTok e programmatic, con focus su ottimizzazione del ROI e analisi delle performance.`;
-    } else if (isProduct) {
-        letter += `
-
-Nel mio ruolo attuale di ${profile.currentRole} presso ${profile.company}, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. Ho esperienza diretta nell'analisi dei trend di mercato, nella collaborazione con team cross-funzionali (IT, Legal, Marketing) per portare prodotti digitali sul mercato.`;
-    } else {
-        letter += `
-
-Nel mio ruolo attuale di ${profile.currentRole} presso ${profile.company}, gestisco strategie di advertising per brand come ${profile.brandsManaged.slice(0, 3).join(', ')}, con focus su ottimizzazione delle performance e analisi data-driven attraverso strumenti come Google Analytics 4, Power BI e Looker Studio.`;
-    }
-    
-    letter += `
-
-Un aspetto che mi differenzia è l'integrazione di competenze in AI applicata al marketing, certificate attraverso corsi specializzati (${profile.aiCertifications.slice(0, 2).join(', ')}). Sono motivato dalla possibilità di contribuire agli obiettivi di ${company} e mettere a disposizione un approccio analitico e orientato ai risultati.
-
-Resto a disposizione per un colloquio conoscitivo.
-
-Cordiali saluti,
-
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-
-function generateBoldCoverLetterIT(jdText, company, role, location, profile, reqs, template) {
-    let letter = `Oggetto: ${role} – Risultati dal primo giorno
-
-Buongiorno Team ${company},
-
-Mi candido per la posizione di ${role}. Ecco cosa porto:
-
-📊 I NUMERI:
-• ${profile.yearsExp}+ anni gestendo campagne digitali per ${profile.brandsManaged.slice(0, 2).join(' & ')}
-• +20% miglioramento medio ROI campagne attraverso ottimizzazione data-driven
-• €2M+ budget media annuale gestito su Meta, Google, TikTok e programmatic
-
-🎯 COSA FAREI PER VOI:`;
-    
-    if (/media/i.test(jdText)) {
-        letter += `
-• Costruire strategie media end-to-end allineate agli obiettivi business
-• Ottimizzare campagne usando GA4, Power BI e dashboard custom
-• Coordinare agenzie e partner per campagne integrate`;
-    } else if (/product/i.test(jdText)) {
-        letter += `
-• Guidare lanci prodotto con team cross-funzionali (IT, Legal, Marketing)
-• Usare analisi mercato e competitive intelligence per roadmap
-• Tracciare KPI post-lancio e iterare basandosi su feedback utenti`;
-    } else {
-        letter += `
-• Gestire campagne performance multi-canale con KPI chiari
-• Implementare strategie A/B testing per massimizzare conversioni
-• Presentare insight agli stakeholder con data visualization`;
-    }
-    
-    letter += `
-
-💡 IL MIO VANTAGGIO:
-Approccio marketing AI-powered (certificato da Fastweb Digital Academy) applicato a progetti reali inclusi sviluppo web e tool automazione.
-
-Mi piacerebbe discutere come la mia esperienza con ${profile.brandsManaged[0]} e ${profile.brandsManaged[1]} si traduce in risultati per ${company}.
-
-Disponibile per una call.
-
-Cordiali saluti,
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-
-function generateStorytellingCoverLetterIT(jdText, company, role, location, profile, reqs) {
-    let letter = `Oggetto: Candidatura per ${role} – ${company}
-
-Gentile Team ${company},
-
-Quando ho iniziato a lavorare sulle campagne digitali Honda ${profile.yearsExp} anni fa, ho capito subito che il grande marketing non riguarda solo piattaforme e metriche—riguarda comprendere le persone e creare connessioni significative su larga scala.
-
-Questa intuizione ha plasmato la mia carriera. Oggi, come ${profile.currentRole} presso ${profile.company}, combino il rigore analitico delle decisioni data-driven con il pensiero creativo necessario per emergere nel rumore.
-
-Per ${company}, vedo un'opportunità per portare lo stesso approccio nel ruolo di ${role}. `;
-    
-    if (/product/i.test(jdText)) {
-        letter += `Il vostro focus sull'innovazione di prodotto risuona con la mia esperienza nel lanciare offerte digitali in automotive e fashion—progetti dove precisione tecnica incontra storytelling creativo per generare impatto business reale.`;
-    } else if (/media/i.test(jdText)) {
-        letter += `Il vostro approccio integrato ai media si allinea perfettamente con come ho gestito campagne su Meta, Google, TikTok e programmatic—sempre cercando le sinergie che fanno 1+1=3.`;
-    } else {
-        letter += `Il vostro impegno verso l'eccellenza data-driven corrisponde al mio: credo che i migliori insight derivino dalla combinazione di analisi quantitativa e comprensione qualitativa del mercato.`;
-    }
-    
-    letter += `
-
-Cosa mi distingue? Oltre ai ${profile.yearsExp} anni di esperienza e al toolkit tecnico (${profile.coreSkills.slice(0, 4).join(', ')}), porto genuina curiosità verso le tecnologie emergenti. Le mie certificazioni AI non sono solo righe sul CV—sono strumenti che uso attivamente per risolvere problemi più efficientemente.
-
-Sarei felice di discutere come il mio background potrebbe contribuire agli obiettivi di ${company}.
-
-In attesa di connetterci,
-
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-
-// ===== ENGLISH =====
-
-function generateStandardCoverLetterEN(jdText, company, role, location, profile, reqs) {
-    const isProduct = /product|roadmap|launch/i.test(jdText);
-    const isMedia = /media\s+(?:strategy|planning|buying)/i.test(jdText);
-    
-    let letter = `Subject: Application for ${role} – ${location}
-
-Dear ${company} Hiring Team,
-
-I am writing to apply for the ${role} position. With over ${profile.yearsExp} years of experience in digital marketing and campaign management for international brands, I believe I can make a meaningful contribution to your team.`;
-    
-    if (isMedia) {
-        letter += `
-
-In my current role as ${profile.currentRole} at ${profile.company}, I manage end-to-end media strategies for brands including ${profile.brandsManaged.slice(0, 3).join(', ')}, coordinating with media agencies and digital partners. I have hands-on experience in media planning and buying across Meta, Google, TikTok, and programmatic platforms, with a focus on ROI optimization and performance analysis.`;
-    } else if (isProduct) {
-        letter += `
-
-In my current role as ${profile.currentRole} at ${profile.company}, I define annual digital strategies and lead product launches for automotive, fashion, and medical device clients. I have direct experience in market trend analysis and cross-functional collaboration (IT, Legal, Marketing) to bring digital products to market.`;
-    } else {
-        letter += `
-
-In my current role as ${profile.currentRole} at ${profile.company}, I manage advertising strategies for brands like ${profile.brandsManaged.slice(0, 3).join(', ')}, focusing on performance optimization and data-driven analysis through tools like Google Analytics 4, Power BI, and Looker Studio.`;
-    }
-    
-    letter += `
-
-What sets me apart is my integration of AI skills into marketing, certified through specialized courses (${profile.aiCertifications.slice(0, 2).join(', ')}). I'm motivated by the opportunity to contribute to ${company}'s objectives with an analytical, results-oriented approach.
-
-I would welcome the chance to discuss this opportunity further.
-
-Best regards,
-
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-
-function generateBoldCoverLetterEN(jdText, company, role, location, profile, reqs, template) {
-    let letter = `Subject: ${role} – Delivering Results from Day One
-
-Hi ${company} Team,
-
-I'm reaching out about the ${role} position. Here's what I bring:
-
-📊 THE NUMBERS:
-• ${profile.yearsExp}+ years managing digital campaigns for ${profile.brandsManaged.slice(0, 2).join(' & ')}
-• 20%+ average improvement in campaign ROI through data-driven optimization
-• €2M+ in annual media budget managed across Meta, Google, TikTok, and programmatic
-
-🎯 WHAT I'D DO FOR YOU:`;
-    
-    if (/media/i.test(jdText)) {
-        letter += `
-• Build end-to-end media strategies aligned with business goals
-• Optimize campaigns using GA4, Power BI, and custom dashboards
-• Coordinate agencies and partners to deliver integrated campaigns`;
-    } else if (/product/i.test(jdText)) {
-        letter += `
-• Lead product launches with cross-functional teams (IT, Legal, Marketing)
-• Use market analysis and competitive intelligence to inform roadmap
-• Track post-launch KPIs and iterate based on user feedback`;
-    } else {
-        letter += `
-• Run performance campaigns across channels with clear KPIs
-• Implement A/B testing strategies to maximize conversion rates
-• Present insights to stakeholders using data visualization tools`;
-    }
-    
-    letter += `
-
-💡 MY EDGE:
-AI-powered marketing approach (certified by Fastweb Digital Academy) applied to real projects including web development and automation tools.
-
-I'd love to discuss how my experience with ${profile.brandsManaged[0]} and ${profile.brandsManaged[1]} translates to driving results for ${company}.
-
-Available for a chat anytime.
-
-Best,
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-
-function generateStorytellingCoverLetterEN(jdText, company, role, location, profile, reqs) {
-    let letter = `Subject: Application for ${role} – ${company}
-
-Dear ${company} Team,
-
-When I first started working on Honda's digital campaigns ${profile.yearsExp} years ago, I quickly learned that great marketing isn't just about platforms and metrics—it's about understanding people and creating meaningful connections at scale.
-
-That realization has shaped my career. Today, as a ${profile.currentRole} at ${profile.company}, I combine the analytical rigor of data-driven decision making with the creative thinking needed to break through the noise.
-
-For ${company}, I see an opportunity to bring this same approach to ${role}. `;
-    
-    if (/product/i.test(jdText)) {
-        letter += `Your focus on product innovation resonates with my experience launching digital offerings across automotive and fashion—projects where technical precision met creative storytelling to deliver real business impact.`;
-    } else if (/media/i.test(jdText)) {
-        letter += `Your integrated media approach aligns perfectly with how I've managed campaigns across Meta, Google, TikTok, and programmatic channels—always looking for the synergies that make 1+1=3.`;
-    } else {
-        letter += `Your commitment to data-driven excellence matches my own: I believe the best insights come from combining quantitative analysis with qualitative understanding of the market.`;
-    }
-    
-    letter += `
-
-What sets me apart? Beyond the ${profile.yearsExp} years of experience and the technical toolkit (${profile.coreSkills.slice(0, 4).join(', ')}), I bring genuine curiosity about emerging technologies. My AI certifications aren't just lines on a resume—they're tools I actively use to solve problems more efficiently.
-
-I'd welcome the chance to discuss how my background could contribute to ${company}'s goals.
-
-Looking forward to connecting,
-
-${profile.name}
-${profile.email} | ${profile.phone}`;
-    
-    return letter;
-}
-// Job Application System V4.1 - Part 4
-// Email System (Mailto Fixed), Document Generation, Display Functions
-
-// ============================================
-// EMAIL PREVIEW & SEND - MAILTO VERSION (FIXED)
-// ============================================
-
-async function previewEmail(analysisId, company, role) {
     const recipientEmail = document.getElementById('recipientEmail').value.trim();
     const coverLetter = document.getElementById('editableCoverLetter').value.trim();
     
-    if (!recipientEmail || !coverLetter) {
-        alert('⚠️ Campi obbligatori: Email destinatario e Cover Letter');
+    if (!recipientEmail) {
+        alert('Please enter recipient email address');
         return;
     }
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(recipientEmail)) {
-        alert('⚠️ Formato email non valido');
+        alert('Please enter a valid email address');
         return;
     }
     
-    const modal = document.createElement('div');
-    modal.id = 'emailPreviewModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('emailPreviewModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h2 style="margin: 0 0 20px 0;">📧 Preview Email</h2>
-            
-            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 13px;">
-                    <strong>💡 Come funziona:</strong><br>
-                    1. Si aprirà Gmail con email pre-compilata<br>
-                    2. Aggiungi manualmente CV e Portfolio<br>
-                    3. Verifica e invia<br>
-                    4. Installa <a href="https://mailtrack.io" target="_blank" style="color: #667eea;">Mailtrack</a> per tracking aperture
-                </p>
-            </div>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="margin: 5px 0;"><strong>Da:</strong> martino.cicerani@gmail.com (Gmail nativo)</p>
-                <p style="margin: 5px 0;"><strong>A:</strong> ${recipientEmail}</p>
-                <p style="margin: 5px 0;"><strong>Oggetto:</strong> Candidatura ${role} - Martino Cicerani</p>
-                <p style="margin: 5px 0;"><strong>Allegati:</strong> Da aggiungere manualmente in Gmail</p>
-            </div>
-            
-            <div style="border: 2px solid #ddd; padding: 20px; border-radius: 8px; background: white; max-height: 400px; overflow-y: auto;">
-                <pre style="white-space: pre-wrap; font-family: Arial; font-size: 13px; margin: 0; line-height: 1.6;">${coverLetter}</pre>
-            </div>
-            
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                <button id="confirmSendEmailBtn" 
-                        class="primary" 
-                        style="flex: 1; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
-                    📧 Apri in Gmail
-                </button>
-                <button onclick="document.getElementById('emailPreviewModal').remove()" 
-                        class="secondary" 
-                        style="flex: 1; padding: 12px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 15px;">
-                    ✏️ Modifica
-                </button>
+    if (!coverLetter) {
+        alert('Cover letter is empty');
+        return;
+    }
+    
+    const modalHTML = `
+        <div id="emailPreviewModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <h2 style="margin-top: 0;">📧 Email Preview</h2>
+                
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <p style="margin: 5px 0;"><strong>To:</strong> ${recipientEmail}</p>
+                    <p style="margin: 5px 0;"><strong>Subject:</strong> Candidatura per ${analysis.role} - ${martinoProfile.name}</p>
+                </div>
+                
+                <div style="background: #fff; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px; white-space: pre-wrap; font-family: Arial, sans-serif; line-height: 1.6;">
+${coverLetter}
+                </div>
+                
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold;">⚠️ Important Instructions:</p>
+                    <ol style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
+                        <li>Gmail will open - the cover letter will be in the email body</li>
+                        <li><strong>YOU MUST MANUALLY ATTACH YOUR CV PDF/DOCX</strong></li>
+                        <li>Attach your portfolio if applicable</li>
+                        <li>Review everything before clicking Send in Gmail</li>
+                        <li>(Optional) Install Mailtrack Chrome extension to track email opens</li>
+                    </ol>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button id="confirmSendEmailBtn" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                        ✅ Open Gmail & Send
+                    </button>
+                    <button onclick="document.getElementById('emailPreviewModal').remove()" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Cancel
+                    </button>
+                </div>
             </div>
         </div>
     `;
     
-    document.body.appendChild(modal);
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
     
     document.getElementById('confirmSendEmailBtn').addEventListener('click', () => {
-        approveAndSendEmail(analysisId, recipientEmail, coverLetter, role);
+        document.getElementById('emailPreviewModal').remove();
+        approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis);
     });
 }
 
-async function approveAndSendEmail(analysisId, recipientEmail, coverLetter, role) {
-    const modal = document.getElementById('emailPreviewModal');
-    if (modal) modal.remove();
+function approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis) {
+    const result = sendApplicationEmail(recipientEmail, analysis.company, analysis.role, coverLetter);
     
-    try {
-        const result = await sendApplicationEmail({
-            analysisId,
-            recipientEmail,
-            coverLetter,
-            role: role
-        });
-        
-        if (result.success) {
-            showSuccessModal(`✅ Gmail aperto con email pre-compilata!
-
-Prossimi step:
-1. Allega CV manualmente
-2. Allega Portfolio (se necessario)
-3. Verifica email e invia
-
-💡 Se hai Mailtrack installato, riceverai notifica quando l'email viene aperta.
-
-📊 Ricordati di aggiornare il risultato entro 15 giorni.`);
-        } else {
-            throw new Error(result.error);
-        }
-        
-    } catch (error) {
-        alert('❌ Errore apertura Gmail: ' + error.message);
-        console.error(error);
+    if (result.success) {
+        StorageManager.markAsSent(analysisId, { recipientEmail });
+        showSuccessModal(analysis.company);
+    } else {
+        alert(result.error);
     }
 }
 
-async function sendApplicationEmail(emailData) {
-    try {
-        const subject = encodeURIComponent(`Candidatura ${emailData.role} - Martino Cicerani`);
-        const body = encodeURIComponent(emailData.coverLetter);
-        const mailto = `mailto:${emailData.recipientEmail}?subject=${subject}&body=${body}`;
-        
-        const gmailWindow = window.open(mailto, '_blank');
-        
-        if (!gmailWindow || gmailWindow.closed || typeof gmailWindow.closed === 'undefined') {
-            throw new Error('Popup bloccato. Abilita i popup per questo sito.');
-        }
-        
-        StorageManager.markAsSent(emailData.analysisId, {
-            recipientEmail: emailData.recipientEmail,
-            attachments: ['CV e Portfolio da allegare manualmente'],
-            sentAt: new Date().toISOString()
-        });
-        
-        return { success: true };
-        
-    } catch (error) {
-        console.error('Send email error:', error);
-        return { success: false, error: error.message };
+function sendApplicationEmail(recipientEmail, company, role, coverLetter) {
+    const subject = `Candidatura per ${role} - ${martinoProfile.name}`;
+    const body = coverLetter;
+    
+    const mailtoLink = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    const popup = window.open(mailtoLink, '_blank');
+    
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        return {
+            success: false,
+            error: 'Popup blocked. Please allow popups for this site and try again.'
+        };
     }
+    
+    return { success: true };
 }
 
-function showSuccessModal(message) {
-    const modal = document.createElement('div');
-    modal.id = 'successModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; padding: 40px; border-radius: 12px; text-align: center; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
-            <div style="font-size: 60px; margin-bottom: 20px;">✅</div>
-            <pre style="white-space: pre-wrap; font-family: Arial; font-size: 14px; text-align: left; line-height: 1.8; margin: 0;">${message}</pre>
-            <button onclick="document.getElementById('successModal').remove()" 
-                    class="primary" 
-                    style="margin-top: 30px; padding: 12px 40px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
-                OK
-            </button>
+function showSuccessModal(company) {
+    const modal = `
+        <div id="successModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+                <h2 style="color: #4CAF50; margin-top: 0;">Email Opened in Gmail!</h2>
+                <p style="margin: 20px 0;">Remember to:</p>
+                <ol style="text-align: left; margin: 20px 0;">
+                    <li style="margin-bottom: 10px;">📎 <strong>Attach your CV PDF/DOCX</strong></li>
+                    <li style="margin-bottom: 10px;">📂 Attach your portfolio (if applicable)</li>
+                    <li style="margin-bottom: 10px;">✉️ Click Send in Gmail</li>
+                </ol>
+                <p style="font-size: 13px; color: #666; margin-top: 20px;">💡 Tip: Install Mailtrack to see when ${company} opens your email</p>
+                <p style="font-size: 13px; color: #666; margin-top: 10px;">⏰ Reminder: Add feedback in 15 days</p>
+                <button onclick="document.getElementById('successModal').remove()" style="margin-top: 20px; padding: 12px 30px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    Got it!
+                </button>
+            </div>
         </div>
     `;
-    document.body.appendChild(modal);
+    
+    document.body.insertAdjacentHTML('beforeend', modal);
 }
 
 // ============================================
 // TAB SWITCHING
 // ============================================
 function switchTab(tabName) {
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
     });
     
-    document.getElementById(`tab-${tabName}`).classList.add('active');
-    event.target.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const activeButton = Array.from(document.querySelectorAll('.tab-button')).find(btn => 
+        btn.textContent.toLowerCase().includes(tabName.toLowerCase())
+    );
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+    
+    const activeContent = document.getElementById(tabName);
+    if (activeContent) {
+        activeContent.classList.add('active');
+    }
 }
 
 // ============================================
-// MARTINO SECTION - GENERATE & DISPLAY
+// MAIN GENERATION FUNCTION - MARTINO MODE
 // ============================================
-function generateDocumentsMartino() {
-    const company = document.getElementById('company').value.trim();
-    const role = document.getElementById('role').value.trim();
-    const location = document.getElementById('location').value.trim() || 'Roma';
-    const jd = document.getElementById('jd').value.trim();
+async function generateDocumentsMartino() {
+    const company = document.getElementById('companyName').value.trim();
+    const role = document.getElementById('roleName').value.trim();
+    const jd = document.getElementById('jdText').value.trim();
     
     if (!company || !role || !jd) {
-        alert('Compila tutti i campi obbligatori (*)');
+        alert('Please fill in all fields');
         return;
     }
     
-    document.getElementById('loading-martino').classList.add('show');
-    document.getElementById('results-martino').classList.remove('show');
+    const loadingDiv = document.getElementById('loadingMartino');
+    const resultsDiv = document.getElementById('resultsMartino');
+    
+    loadingDiv.style.display = 'block';
+    resultsDiv.innerHTML = '';
     
     setTimeout(async () => {
-        const industry = detectIndustry(jd);
-        const keywords = await extractKeywordsAdvanced(jd, 15);
-        const reqs = extractRequirements(jd);
-        
-        const variants = generateCoverLetterVariantsBilingual(jd, company, role, location, martinoProfile, industry);
-        const aboutMe = generateCVAboutSectionMartino(jd);
-        const detailedSuggestions = generateDetailedCVSuggestions(jd, reqs, martinoProfile.coreSkills, industry);
-        const competitiveAnalysis = generateCompetitiveAnalysis(martinoProfile, reqs);
-        
-        const combinedText = variants.standard_it + ' ' + aboutMe;
-        const atsScore = calculateATSScore(combinedText, keywords);
-        
-        const results = {
-            atsScore,
-            coverLetter: variants.standard_it,
-            aboutMe,
-            detailedSuggestions,
-            keywords,
-            variants,
-            competitiveAnalysis,
-            industry,
-            selectedStyle: 'standard_it'
-        };
-        
-        currentAnalysisResults = results;
-        const analysisId = StorageManager.saveAnalysis(company, role, results, 'martino');
-        
-        displayResultsMartino(atsScore, variants.standard_it, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId);
-        
-        document.getElementById('loading-martino').classList.remove('show');
-        document.getElementById('results-martino').classList.add('show');
-        document.getElementById('results-martino').scrollIntoView({ behavior: 'smooth' });
-    }, 15000);
+        try {
+            const industry = detectIndustry(jd);
+            
+            const keywords = await extractKeywordsAdvanced(jd, 15);
+            
+            const reqs = extractRequirements(jd);
+            
+            const coverLetterVariants = generateCoverLetterVariantsBilingual(company, role, jd, martinoProfile);
+            
+            const aboutMe = generateCVAboutSectionMartino(jd, martinoProfile);
+            
+            const detailedSuggestions = generateDetailedCVSuggestions(jd, reqs, martinoProfile.coreSkills, industry, martinoProfile);
+            
+            const competitiveAnalysis = generateCompetitiveAnalysis(jd, martinoProfile);
+            
+            const cvText = `${martinoProfile.name}\n${martinoProfile.coreSkills.join(', ')}\n${aboutMe}`;
+            const atsScore = calculateATSScore(cvText, keywords);
+            
+            const detectedEmail = extractEmailFromJD(jd);
+            
+            const results = {
+                company,
+                role,
+                industry,
+                keywords,
+                coverLetterVariants,
+                coverLetter: coverLetterVariants.standard_it,
+                aboutMe,
+                detailedSuggestions,
+                competitiveAnalysis,
+                atsScore,
+                detectedEmail
+            };
+            
+            const analysisId = StorageManager.saveAnalysis(company, role, results, 'martino');
+            
+            displayResultsMartino(results, analysisId);
+            
+            loadingDiv.style.display = 'none';
+            
+        } catch (error) {
+            console.error('Generation error:', error);
+            loadingDiv.style.display = 'none';
+            alert('Error generating documents. Check console for details.');
+        }
+    }, 30000);
 }
+// Part 5: Display Results (with Gap Analysis + Keywords), History, Generic Mode, File Handlers
 
-function displayResultsMartino(atsScore, coverLetter, aboutMe, detailedSuggestions, company, role, keywords, variants, competitiveAnalysis, industry, analysisId) {
-    let interpretation = '';
-    if (atsScore.score >= 70) interpretation = '✅ Ottimo match! Alta probabilità di passare i filtri ATS';
-    else if (atsScore.score >= 50) interpretation = '⚠️ Buon match, considera di aggiungere keyword mancanti';
-    else interpretation = '❌ Match basso. Rivedi i documenti';
+// ============================================
+// DISPLAY RESULTS - MARTINO MODE
+// ============================================
+function displayResultsMartino(results, analysisId) {
+    const compLevel = getCompetitivenessLevel(results.competitiveAnalysis.overall);
     
-    const compLevel = getCompetitivenessLevel(competitiveAnalysis.overallCompetitiveness);
-    
-    const detectedEmail = extractEmailFromJD(document.getElementById('jd').value);
+    window.currentCoverLetterVariants = results.coverLetterVariants;
+    window.currentCompany = results.company;
+    window.currentRole = results.role;
+    window.currentAnalysisResults = {
+        ...results,
+        selectedStyle: 'standard_it',
+        analysisId
+    };
     
     const resultsHTML = `
-        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2 style="margin: 0;">📊 Analisi Salvata</h2>
-                    <p style="margin: 5px 0 0 0; opacity: 0.9;">Industry: ${industry.toUpperCase()} | ${new Date().toLocaleDateString('it-IT')}</p>
-                </div>
-                <button onclick="showHistory()" class="copy-btn" style="background: white; color: #667eea;">📋 Cronologia</button>
-            </div>
+        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h2 style="margin-top: 0; color: white;">✅ Analysis Complete: ${results.company}</h2>
+            <p style="font-size: 18px; margin: 0;">${results.role}</p>
         </div>
         
         <div class="card">
-            <h3 style="color: #667eea;">${compLevel.icon} COMPETITIVE ANALYSIS</h3>
-            <div style="background: linear-gradient(135deg, ${compLevel.color}22, ${compLevel.color}11); padding: 20px; border-radius: 8px; border-left: 4px solid ${compLevel.color};">
-                <h4 style="color: ${compLevel.color}; margin: 0 0 15px 0;">Overall: ${competitiveAnalysis.overallCompetitiveness}% - ${compLevel.level}</h4>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 28px; font-weight: bold; color: ${compLevel.color};">${competitiveAnalysis.experienceGap}%</div>
-                        <div style="font-size: 12px; color: #666;">Experience Match</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 28px; font-weight: bold; color: ${compLevel.color};">${competitiveAnalysis.toolsCoverage}%</div>
-                        <div style="font-size: 12px; color: #666;">Tools Coverage</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 28px; font-weight: bold; color: ${compLevel.color};">${competitiveAnalysis.industryFit}%</div>
-                        <div style="font-size: 12px; color: #666;">Industry Fit</div>
-                    </div>
+            <h3 style="color: #667eea;">📊 COMPETITIVE ANALYSIS</h3>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <div style="display: inline-block; background: ${compLevel.color}; color: white; padding: 15px 30px; border-radius: 50px; font-size: 18px; font-weight: bold;">
+                    Overall: ${results.competitiveAnalysis.overall}% - ${compLevel.label}
                 </div>
-                
-                ${competitiveAnalysis.strengths.length > 0 ? `
-                    <div style="margin-bottom: 15px;">
-                        <p style="margin: 0 0 8px 0; font-weight: 600; color: #28a745;">✅ Strengths:</p>
-                        <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-                            ${competitiveAnalysis.strengths.map(s => `<li>${s}</li>`).join('')}
-                        </ul>
-                    </div>
-                ` : ''}
-                
-                ${competitiveAnalysis.weaknesses.length > 0 ? `
-                    <div style="margin-bottom: 15px;">
-                        <p style="margin: 0 0 8px 0; font-weight: 600; color: #ff9800;">⚠️ Areas to Address:</p>
-                        <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-                            ${competitiveAnalysis.weaknesses.map(w => `<li>${w}</li>`).join('')}
-                        </ul>
-                    </div>
-                ` : ''}
-                
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0;">
+                <div style="text-align: center; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <div style="font-size: 32px; font-weight: bold; color: #667eea;">${results.competitiveAnalysis.experienceMatch}%</div>
+                    <div style="font-size: 14px; color: #666;">Experience Match</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <div style="font-size: 32px; font-weight: bold; color: #667eea;">${results.competitiveAnalysis.toolsCoverage}%</div>
+                    <div style="font-size: 14px; color: #666;">Tools Coverage</div>
+                </div>
+                <div style="text-align: center; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <div style="font-size: 32px; font-weight: bold; color: #667eea;">${results.competitiveAnalysis.industryFit}%</div>
+                    <div style="font-size: 14px; color: #666;">Industry Fit</div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px;">
                 <div>
-                    <p style="margin: 0 0 8px 0; font-weight: 600; color: #667eea;">🎯 Positioning:</p>
+                    <p style="margin: 0 0 8px 0; font-weight: 600; color: #4caf50;">✅ Strengths:</p>
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-                        ${competitiveAnalysis.positioning.map(p => `<li>${p}</li>`).join('')}
+                        ${results.competitiveAnalysis.strengths.map(s => `<li>${s}</li>`).join('')}
                     </ul>
                 </div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="score-display">
-                <div class="score-number">${atsScore.score}%</div>
-                <div class="score-label">ATS Match Score</div>
-                <div class="score-interpretation">${interpretation}</div>
+                ${results.competitiveAnalysis.weaknesses.length > 0 ? `
+                <div>
+                    <p style="margin: 0 0 8px 0; font-weight: 600; color: #ff9800;">⚠️ Weaknesses:</p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+                        ${results.competitiveAnalysis.weaknesses.map(w => `<li>${w}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
             </div>
             
-            <div class="keyword-section">
-                <h3>✅ Keyword Matchate (${atsScore.matchedKeywords})</h3>
-                <div class="keyword-tags">
-                    ${atsScore.matches.map(kw => `<span class="keyword-tag matched">${kw}</span>`).join('')}
-                </div>
-            </div>
-            
-            <div class="keyword-section">
-                <h3>⚠️ Keyword Mancanti (${atsScore.missing.length})</h3>
-                <div class="keyword-tags">
-                    ${atsScore.missing.slice(0, 10).map(kw => `<span class="keyword-tag missing">${kw}</span>`).join('')}
-                </div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h3 style="margin-bottom: 15px;">📄 Cover Letter - Scegli Stile & Lingua</h3>
-            <div style="margin-bottom: 20px;">
-                <select id="coverLetterStyle" onchange="switchCoverLetterVariant()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px;">
-                    <option value="standard_it">🇮🇹 Standard (Corporate/Finance)</option>
-                    <option value="bold_it">🇮🇹 Bold (Startup/Tech)</option>
-                    <option value="storytelling_it">🇮🇹 Storytelling (Creative)</option>
-                    <option value="standard_en">🇬🇧 Standard (Corporate/Finance)</option>
-                    <option value="bold_en">🇬🇧 Bold (Startup/Tech)</option>
-                    <option value="storytelling_en">🇬🇧 Storytelling (Creative)</option>
-                </select>
-            </div>
-            <div class="document-output">
-                <textarea id="editableCoverLetter" rows="20" style="width: 100%; padding: 10px; font-family: monospace; font-size: 13px; border: 2px solid #ddd; border-radius: 8px;">${variants.standard_it}</textarea>
-                <small style="color: #666;">💡 Modifica la cover letter secondo i suggerimenti prima di inviare</small>
-                <div class="download-section" style="margin-top: 15px;">
-                    <button class="copy-btn" onclick="copyToClipboard('editableCoverLetter')">📋 Copia</button>
-                    <button class="download-btn" onclick="downloadCoverLetter()">📥 Download DOCX</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="document-output">
-                <h3>👤 About Me CV</h3>
-                <pre id="aboutMeOutput">${aboutMe}</pre>
-                <button class="copy-btn" onclick="copyToClipboard('aboutMeOutput')">📋 Copia</button>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h3>💡 Suggerimenti CV (${industry.toUpperCase()} style)</h3>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea;">
-                <h4 style="color: #667eea; margin: 0 0 15px 0;">👔 WORK EXPERIENCE:</h4>
-                <ul style="margin: 0; padding-left: 20px;">
-                    ${detailedSuggestions.workExperienceBullets.map(bullet => 
-                        `<li style="margin-bottom: 10px; font-size: 13px; line-height: 1.6;">${bullet}</li>`
-                    ).join('')}
+            <div style="background: #fff9e6; padding: 15px; border-radius: 8px; border-left: 4px solid #ff9800; margin-top: 15px;">
+                <p style="margin: 0 0 10px 0; font-weight: 600; color: #e65100;">🎯 STRATEGIC POSITIONING:</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">
+                    ${results.competitiveAnalysis.positioning.map(p => `<li style="margin-bottom: 8px;">${p}</li>`).join('')}
                 </ul>
             </div>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
-                <h4 style="color: #28a745; margin: 0 0 15px 0;">🔧 SKILLS:</h4>
-                ${detailedSuggestions.skillsToHighlight.length > 0 ? `
-                    <p style="margin: 0 0 8px 0; font-size: 13px;"><strong>Evidenzia:</strong></p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
-                        ${detailedSuggestions.skillsToHighlight.map(skill => 
-                            `<span style="background: #d4edda; color: #155724; padding: 6px 12px; border-radius: 4px; font-size: 12px;">${skill}</span>`
-                        ).join('')}
-                    </div>
-                ` : ''}
-                ${detailedSuggestions.skillsToAdd.length > 0 ? `
-                    <p style="margin: 0 0 8px 0; font-size: 13px;"><strong>⚠️ Aggiungi:</strong></p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                        ${detailedSuggestions.skillsToAdd.map(skill => 
-                            `<span style="background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-size: 12px;">${skill}</span>`
-                        ).join('')}
-                    </div>
-                ` : ''}
-            </div>
-            
-            <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 4px solid #4caf50;">
-                <h4 style="color: #2e7d32; margin: 0 0 15px 0;">✅ ATS Keyword Checklist</h4>
-                ${Object.entries(detailedSuggestions.atsKeywordChecklist).map(([category, items]) => 
-                    items.length > 0 ? `
-                        <div style="margin-bottom: 12px;">
-                            <p style="margin: 0 0 6px 0; font-weight: 600; font-size: 12px;">✓ ${category}:</p>
-                            <p style="margin: 0; font-size: 12px; line-height: 1.6;">${items.join(', ')}</p>
-                        </div>
-                    ` : ''
-                ).join('')}
-            </div>
         </div>
         
-        <div class="card" id="emailSection">
-            <h3>📧 Invia Candidatura via Email</h3>
+        <div class="card">
+            <h3 style="color: #667eea;">${results.atsScore.score >= 70 ? '✅' : results.atsScore.score >= 50 ? '⚠️' : '❌'} ATS Match Score</h3>
             
-            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 13px;">
-                    <strong>⚠️ Prima di inviare:</strong> Modifica la cover letter sopra secondo i suggerimenti, 
-                    aggiorna il tuo CV e preparalo per l'upload.
+            <div style="text-align: center; margin: 20px 0;">
+                <div style="display: inline-block; font-size: 64px; font-weight: bold; color: ${results.atsScore.score >= 70 ? '#4caf50' : results.atsScore.score >= 50 ? '#ff9800' : '#f44336'};">
+                    ${results.atsScore.score}%
+                </div>
+                <p style="margin: 10px 0 0 0; color: #666;">
+                    ${results.atsScore.matchedKeywords} of ${results.atsScore.totalKeywords} keywords matched
                 </p>
             </div>
             
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Email Destinatario *</label>
-                <input type="email" id="recipientEmail" 
-                       value="${detectedEmail || ''}"
-                       placeholder="es: jobs@company.com, hr@company.com" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
-                ${detectedEmail ? '<small style="color: #28a745;">✅ Email rilevata automaticamente dalla JD</small>' : '<small style="color: #666;">Cerca l\'email su LinkedIn o sito aziendale se non presente nella JD</small>'}
+            ${results.atsScore.matches.length > 0 ? `
+            <div style="margin-bottom: 15px;">
+                <p style="font-weight: 600; color: #4caf50; margin-bottom: 8px;">✅ Keyword Matchate (${results.atsScore.matches.length}):</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${results.atsScore.matches.map(kw => 
+                        `<span style="background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 4px; font-size: 13px;">${kw}</span>`
+                    ).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${results.atsScore.missing.length > 0 ? `
+            <div>
+                <p style="font-weight: 600; color: #ff9800; margin-bottom: 8px;">⚠️ Keyword Mancanti (${results.atsScore.missing.length}):</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${results.atsScore.missing.map(kw => 
+                        `<span style="background: #fff3e0; color: #e65100; padding: 6px 12px; border-radius: 4px; font-size: 13px;">${kw}</span>`
+                    ).join('')}
+                </div>
+            </div>
+            ` : ''}
+        </div>
+        
+        <div class="card">
+            <h3 style="color: #667eea;">📝 Cover Letter - Scegli Stile & Lingua</h3>
+            
+            <select id="coverLetterStyleSelector" onchange="switchCoverLetterVariant()" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px; margin-bottom: 15px;">
+                <option value="standard_it">🇮🇹 Standard (Corporate/Finance)</option>
+                <option value="bold_it">🇮🇹 Bold (Startup/Tech)</option>
+                <option value="storytelling_it">🇮🇹 Storytelling (Creative)</option>
+                <option value="standard_en">🇬🇧 Standard (Corporate/Finance)</option>
+                <option value="bold_en">🇬🇧 Bold (Startup/Tech)</option>
+                <option value="storytelling_en">🇬🇧 Storytelling (Creative)</option>
+            </select>
+            
+            <textarea id="editableCoverLetter" style="width: 100%; min-height: 400px; padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${results.coverLetter}</textarea>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button onclick="copyToClipboard('editableCoverLetter')" style="flex: 1; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    📋 Copy
+                </button>
+                <button onclick="downloadCoverLetter()" style="flex: 1; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    💾 Download
+                </button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="color: #667eea;">👤 About Me CV</h3>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; border-left: 4px solid #667eea; margin-bottom: 15px;">
+                <p style="margin: 0; font-size: 14px; line-height: 1.7;">${results.aboutMe}</p>
+            </div>
+            <button onclick="copyToClipboard('aboutMeText')" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                📋 Copy
+            </button>
+            <textarea id="aboutMeText" style="position: absolute; left: -9999px;">${results.aboutMe}</textarea>
+        </div>
+        
+        <div class="card">
+            <h3 style="color: #667eea;">💡 Suggerimenti CV</h3>
+            
+            <h4 style="color: #2196f3; margin-top: 0;">📌 WORK EXPERIENCE</h4>
+            <ul style="margin: 0 0 20px 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+                ${results.detailedSuggestions.workExperienceBullets.map(bullet => `<li>${bullet}</li>`).join('')}
+            </ul>
+            
+            ${results.detailedSuggestions.skillsToHighlight.length > 0 ? `
+            <h4 style="color: #4caf50; margin-top: 20px;">✅ Skills to Highlight (già nel tuo profilo)</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+                ${results.detailedSuggestions.skillsToHighlight.map(skill => 
+                    `<span style="background: #e8f5e9; color: #2e7d32; padding: 8px 15px; border-radius: 6px; font-size: 13px;">${skill}</span>`
+                ).join('')}
+            </div>
+            ` : ''}
+            
+            ${results.detailedSuggestions.atsKeywordChecklist && Object.keys(results.detailedSuggestions.atsKeywordChecklist).length > 0 ? `
+            <h4 style="color: #667eea; margin-top: 20px;">✅ ATS Keyword Checklist</h4>
+            ${Object.entries(results.detailedSuggestions.atsKeywordChecklist).map(([category, keywords]) => 
+                keywords.length > 0 ? `
+                <div style="margin-bottom: 15px;">
+                    <p style="margin: 0 0 8px 0; font-weight: 600; font-size: 13px; color: #666;">✓ ${category}:</p>
+                    <p style="margin: 0; font-size: 13px; color: #333;">${keywords.join(', ')}</p>
+                </div>
+                ` : ''
+            ).join('')}
+            ` : ''}
+        </div>
+        
+        <div class="card">
+            <h3 style="color: #ff9800;">⚠️ Skills Gap Analysis</h3>
+            
+            ${results.detailedSuggestions.gapAnalysis && results.detailedSuggestions.gapAnalysis.length > 0 ? `
+                ${results.detailedSuggestions.gapAnalysis.map(gap => `
+                    <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ff9800;">
+                        <h4 style="margin: 0 0 10px 0; color: #e65100;">❌ Missing: ${gap.gap}</h4>
+                        <p style="margin: 0 0 8px 0; font-size: 13px;"><strong>Analysis:</strong> ${gap.analysis}</p>
+                        <p style="margin: 0; font-size: 13px; background: #fffde7; padding: 10px; border-radius: 6px;"><strong>💡 Positioning Strategy:</strong> ${gap.positioning}</p>
+                    </div>
+                `).join('')}
+            ` : '<p style="color: #666;">No critical gaps identified. Your profile aligns well with requirements.</p>'}
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 4px solid #2196f3; margin-top: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #1565c0;">📌 KEYWORD SUGGESTIONS FOR CV</h4>
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #666;">Add these to a "Core Competencies" or "Keywords" section in your CV (ONLY if genuinely applicable)</p>
+                
+                ${results.detailedSuggestions.keywordSuggestions.highPriority.length > 0 ? `
+                    <div style="margin-bottom: 15px;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #d32f2f;">🔴 High Priority (mentioned 5+ times):</p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${results.detailedSuggestions.keywordSuggestions.highPriority.map(kw => 
+                                `<span style="background: #ffebee; color: #c62828; padding: 6px 12px; border-radius: 4px; font-size: 12px; border: 1px solid #ef9a9a;">${kw}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${results.detailedSuggestions.keywordSuggestions.mediumPriority.length > 0 ? `
+                    <div style="margin-bottom: 15px;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #f57c00;">🟠 Medium Priority (relevant to role):</p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${results.detailedSuggestions.keywordSuggestions.mediumPriority.map(kw => 
+                                `<span style="background: #fff3e0; color: #e65100; padding: 6px 12px; border-radius: 4px; font-size: 12px; border: 1px solid #ffb74d;">${kw}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${results.detailedSuggestions.keywordSuggestions.lowPriority.length > 0 ? `
+                    <div>
+                        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #388e3c;">🟢 Low Priority (nice to have):</p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${results.detailedSuggestions.keywordSuggestions.lowPriority.map(kw => 
+                                `<span style="background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 4px; font-size: 12px; border: 1px solid #81c784;">${kw}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <p style="margin: 15px 0 0 0; font-size: 12px; color: #d32f2f; font-weight: 600;">⚠️ Add these ONLY if you genuinely have the experience. Don't fabricate skills.</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="color: #667eea;">📧 Invia Candidatura via Email</h3>
+            
+            ${results.detectedEmail ? `
+            <div style="background: #e8f5e9; padding: 10px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #4caf50;">
+                <p style="margin: 0; font-size: 13px;">✅ Email rilevata automaticamente dalla job description</p>
+            </div>
+            ` : ''}
+            
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Email Destinatario:</label>
+            <input type="email" id="recipientEmail" value="${results.detectedEmail}" placeholder="hr@company.com" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 15px;">
+            
+            <div style="background: #fff3cd; padding: 12px; border-radius: 6px; border-left: 4px solid #ffc107; margin-bottom: 15px;">
+                <p style="margin: 0; font-size: 13px;">⚠️ Prima di inviare: Modifica la cover letter sopra secondo i suggerimenti, aggiungi le tue competenze chiave, personalizza!</p>
             </div>
             
-            <button id="previewEmailBtn" 
-                    class="primary" 
-                    style="width: 100%; padding: 15px; font-size: 16px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                👁️ Preview & Invia Email
+            <button id="previewEmailBtn" style="width: 100%; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold;">
+                📧 Preview & Send Email
             </button>
         </div>
     `;
     
-    document.getElementById('results-martino').innerHTML = resultsHTML;
+    document.getElementById('resultsMartino').innerHTML = resultsHTML;
     
-    window.currentCoverLetterVariants = variants;
-    window.currentCompany = company;
-    window.currentRole = role;
-    
-    const emailBtn = document.getElementById('previewEmailBtn');
-    if (emailBtn) {
-        emailBtn.addEventListener('click', () => {
-            previewEmail(analysisId, company, role);
-        });
-    }
+    document.getElementById('previewEmailBtn').addEventListener('click', () => {
+        previewEmail(analysisId);
+    });
 }
 
+// ============================================
+// COVER LETTER VARIANT SWITCHER
+// ============================================
 function switchCoverLetterVariant() {
-    const style = document.getElementById('coverLetterStyle').value;
+    const selectedStyle = document.getElementById('coverLetterStyleSelector').value;
     const variants = window.currentCoverLetterVariants;
     
-    const selectedLetter = variants[style] || variants.standard_it;
-    
-    document.getElementById('editableCoverLetter').value = selectedLetter;
-    
-    if (currentAnalysisResults) {
-        currentAnalysisResults.selectedStyle = style;
+    if (variants && variants[selectedStyle]) {
+        document.getElementById('editableCoverLetter').value = variants[selectedStyle];
+        
+        if (window.currentAnalysisResults) {
+            window.currentAnalysisResults.selectedStyle = selectedStyle;
+        }
     }
 }
-// Job Application System V4.1 - Part 5
-// History, Feedback System, Export/Import, Generic CV Functions, Utilities
 
 // ============================================
-// HISTORY & FEEDBACK MANAGEMENT
+// HISTORY & FEEDBACK
 // ============================================
-
 function showHistory() {
     const history = StorageManager.getHistory();
     
-    if (history.length === 0) {
-        alert('Nessuna analisi salvata');
-        return;
-    }
-    
-    const modal = document.createElement('div');
-    modal.id = 'historyModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    
-    const statusBadge = (status) => {
-        const badges = {
-            'draft': '📝 Bozza',
-            'sent': '📤 Inviata',
-            'pending': '⏳ In attesa',
-            'auto-ghosted': '👻 Auto-ghosted',
-            'completed': '✅ Completed'
-        };
-        const colors = {
-            'draft': '#6c757d',
-            'sent': '#667eea',
-            'pending': '#ffc107',
-            'auto-ghosted': '#dc3545',
-            'completed': '#28a745'
-        };
-        return `<span style="background: ${colors[status]}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${badges[status]}</span>`;
+    const statusBadge = (entry) => {
+        if (entry.feedbackCompleted) return '<span style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">✅ Completed</span>';
+        if (entry.emailSent) return '<span style="background: #2196f3; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">📧 Sent</span>';
+        return '<span style="background: #ff9800; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">📝 Draft</span>';
     };
     
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('historyModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h2 style="margin: 0 0 20px 0;">📋 Cronologia Candidature (${history.length})</h2>
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <button onclick="StorageManager.exportData()" class="primary" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
-                    📤 Esporta Dati
-                </button>
-                <button onclick="showImportDialog()" class="secondary" style="padding: 10px 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px;">
-                    📥 Importa Dati
-                </button>
-                <button onclick="showLearningStats()" class="secondary" style="padding: 10px 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px;">
-                    📊 Statistiche
-                </button>
-            </div>
-            
-            <div style="display: grid; gap: 15px;">
-                ${history.map(entry => `
-                    <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                            <div>
-                                <h4 style="margin: 0 0 5px 0; color: #333;">${entry.company} - ${entry.role}</h4>
-                                <small style="color: #666;">${new Date(entry.date).toLocaleDateString('it-IT')} | ATS: ${entry.atsScore}%${entry.emailSent ? ` | Inviata a: ${entry.recipientEmail}` : ''}</small>
+    const modalHTML = `
+        <div id="historyModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; padding: 20px;">
+            <div style="max-width: 1000px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px;">
+                <h2 style="margin-top: 0;">📂 Cronologia Candidature</h2>
+                
+                ${history.length === 0 ? '<p>Nessuna candidatura salvata.</p>' : `
+                <div style="display: grid; gap: 15px;">
+                    ${history.map(entry => `
+                        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                <div>
+                                    <h3 style="margin: 0 0 5px 0;">${entry.company} - ${entry.role}</h3>
+                                    <p style="margin: 0; font-size: 13px; color: #666;">${new Date(entry.date).toLocaleDateString('it-IT')}</p>
+                                </div>
+                                ${statusBadge(entry)}
                             </div>
-                            ${statusBadge(entry.status)}
-                        </div>
-                        
-                        ${entry.feedbackCompleted ? `
-                            <div style="background: #e8f5e9; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
-                                <strong>Outcome:</strong> ${entry.outcome} ${entry.interviewType ? `(${entry.interviewType})` : ''}<br>
-                                <strong>Response time:</strong> ${entry.responseTime} giorni<br>
-                                ${entry.feedbackNotes ? `<strong>Note:</strong> ${entry.feedbackNotes}` : ''}
+                            
+                            <div style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 13px;">
+                                <span>ATS Score: <strong>${entry.atsScore}%</strong></span>
+                                ${entry.recipientEmail ? `<span>Email: <strong>${entry.recipientEmail}</strong></span>` : ''}
                             </div>
-                        ` : entry.status === 'sent' || entry.status === 'auto-ghosted' ? `
-                            <div style="margin-top: 10px;">
-                                <button onclick="showFeedbackForm(${entry.id})" class="secondary" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
-                                    📊 Aggiungi Feedback
+                            
+                            ${entry.feedbackCompleted ? `
+                                <div style="background: #e8f5e9; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
+                                    ✅ Feedback: ${entry.outcome}
+                                </div>
+                            ` : ''}
+                            
+                            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                <button onclick="reloadAnalysis(${entry.id})" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                    🔄 Ricarica
                                 </button>
+                                <button onclick="if(confirm('Eliminare questa candidatura?')) deleteAnalysis(${entry.id})" style="padding: 8px 15px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                    🗑️ Elimina
+                                </button>
+                                ${entry.emailSent && !entry.feedbackCompleted ? `
+                                    <button onclick="showFeedbackForm(${entry.id})" style="padding: 8px 15px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                                        ✍️ Aggiungi Feedback
+                                    </button>
+                                ` : ''}
                             </div>
-                        ` : ''}
-                        
-                        <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button onclick="reloadAnalysis(${entry.id})" class="secondary" style="flex: 1; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px;">
-                                📂 Ricarica
-                            </button>
-                            <button onclick="deleteAnalysis(${entry.id})" class="secondary" style="flex: 1; padding: 8px; background: #fff; border: 1px solid #dc3545; color: #dc3545; border-radius: 6px; cursor: pointer; font-size: 13px;">
-                                🗑️ Elimina
-                            </button>
                         </div>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
+                `}
+                
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button onclick="StorageManager.exportData()" style="padding: 12px 20px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        💾 Export Backup
+                    </button>
+                    <button onclick="document.getElementById('historyModal').remove()" style="padding: 12px 20px; background: #666; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Close
+                    </button>
+                </div>
             </div>
         </div>
     `;
     
-    document.body.appendChild(modal);
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
 function reloadAnalysis(id) {
     const entry = StorageManager.getAnalysis(id);
-    if (!entry) {
-        alert('Analisi non trovata');
-        return;
-    }
+    if (!entry) return;
     
-    document.getElementById('company').value = entry.company;
-    document.getElementById('role').value = entry.role;
+    document.getElementById('companyName').value = entry.company;
+    document.getElementById('roleName').value = entry.role;
     
-    if (entry.fullResults) {
-        currentAnalysisResults = entry.fullResults;
-        
-        const results = entry.fullResults;
-        displayResultsMartino(
-            results.atsScore,
-            results.coverLetter,
-            results.aboutMe,
-            results.detailedSuggestions,
-            entry.company,
-            entry.role,
-            results.keywords,
-            results.variants,
-            results.competitiveAnalysis,
-            results.industry,
-            id
-        );
-        
-        switchTab('martino');
-        document.getElementById('results-martino').classList.add('show');
-        document.getElementById('results-martino').scrollIntoView({ behavior: 'smooth' });
-    }
+    const fullResults = entry.fullResults;
+    displayResultsMartino(fullResults, id);
     
-    const modal = document.getElementById('historyModal');
-    if (modal) modal.remove();
+    switchTab('martino');
+    
+    document.getElementById('historyModal').remove();
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function deleteAnalysis(id) {
-    if (confirm('Eliminare questa analisi?')) {
-        StorageManager.deleteAnalysis(id);
-        showHistory();
-    }
-}
-
-function showFeedbackForm(id) {
-    const entry = StorageManager.getAnalysis(id);
-    if (!entry) return;
-    
-    const modal = document.createElement('div');
-    modal.id = 'feedbackModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('feedbackModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h3 style="margin: 0 0 20px 0;">📊 Feedback - ${entry.company}</h3>
-            
-            <div class="form-group" style="margin-bottom: 15px;">
-                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Outcome *</label>
-                <select id="feedbackOutcome" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
-                    <option value="">-- Seleziona --</option>
-                    <option value="interview">✅ Colloquio fissato</option>
-                    <option value="rejection">❌ Rifiutato</option>
-                    <option value="ghosted">👻 Nessuna risposta (ghosting)</option>
-                </select>
-            </div>
-            
-            <div class="form-group" style="margin-bottom: 15px;">
-                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Giorni di risposta</label>
-                <input type="number" id="feedbackResponseTime" placeholder="es: 7" min="0" max="90" 
-                       style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
-            </div>
-            
-            <div class="form-group" id="interviewTypeContainer" style="margin-bottom: 15px; display: none;">
-                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Tipo colloquio</label>
-                <select id="feedbackInterviewType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
-                    <option value="">-- Seleziona --</option>
-                    <option value="phone">📞 Telefonico</option>
-                    <option value="video">📹 Video call</option>
-                    <option value="in-person">🏢 Di persona</option>
-                    <option value="technical">💻 Tecnico</option>
-                </select>
-            </div>
-            
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Note</label>
-                <textarea id="feedbackNotes" rows="3" placeholder="Eventuali note..." 
-                          style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;"></textarea>
-            </div>
-            
-            <button onclick="submitFeedback(${id})" class="primary" style="width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;">
-                💾 Salva Feedback
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('feedbackOutcome').addEventListener('change', (e) => {
-        const container = document.getElementById('interviewTypeContainer');
-        if (e.target.value === 'interview') {
-            container.style.display = 'block';
-        } else {
-            container.style.display = 'none';
-        }
-    });
-}
-
-function submitFeedback(id) {
-    const outcome = document.getElementById('feedbackOutcome').value;
-    const responseTime = parseInt(document.getElementById('feedbackResponseTime').value) || 0;
-    const interviewType = document.getElementById('feedbackInterviewType').value;
-    const notes = document.getElementById('feedbackNotes').value;
-    
-    if (!outcome) {
-        alert('Seleziona un outcome');
-        return;
-    }
-    
-    const feedbackData = {
-        outcome,
-        responseTime,
-        interviewType: outcome === 'interview' ? interviewType : null,
-        feedbackNotes: notes
-    };
-    
-    StorageManager.updateFeedback(id, feedbackData);
-    
-    const modal = document.getElementById('feedbackModal');
-    if (modal) modal.remove();
-    
+    StorageManager.deleteAnalysis(id);
+    document.getElementById('historyModal').remove();
     showHistory();
-}
-
-function showFeedbackReminder(app) {
-    const banner = document.createElement('div');
-    banner.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #fff3cd; border: 2px solid #ff9800; border-radius: 8px; padding: 15px; max-width: 350px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
-    banner.innerHTML = `
-        <h4 style="margin: 0 0 10px 0; color: #856404;">⏰ Reminder Feedback</h4>
-        <p style="margin: 0 0 10px 0; font-size: 13px;">Sono passati 15 giorni dalla candidatura a <strong>${app.company}</strong>. Aggiungi feedback!</p>
-        <button onclick="showFeedbackForm(${app.id}); this.parentElement.remove();" style="width: 100%; padding: 8px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 5px;">
-            📊 Aggiungi Ora
-        </button>
-        <button onclick="this.parentElement.remove();" style="width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 13px;">
-            Ricordamelo dopo
-        </button>
-    `;
-    document.body.appendChild(banner);
-    
-    setTimeout(() => banner.remove(), 15000);
-}
-
-// ============================================
-// LEARNING STATS DISPLAY
-// ============================================
-
-function showLearningStats() {
-    const learning = StorageManager.getLearningData();
-    
-    const modal = document.createElement('div');
-    modal.id = 'statsModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    
-    let industryStatsHTML = '<p style="color: #666;">Nessun dato disponibile</p>';
-    if (Object.keys(learning.industryStats).length > 0) {
-        industryStatsHTML = Object.entries(learning.industryStats).map(([industry, stats]) => {
-            const successRate = stats.applications > 0 ? Math.round((stats.interviews / stats.applications) * 100) : 0;
-            return `
-                <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa; margin-bottom: 10px;">
-                    <h4 style="margin: 0 0 10px 0; color: #667eea; text-transform: capitalize;">${industry}</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 13px;">
-                        <div>
-                            <strong>Applications:</strong> ${stats.applications}
-                        </div>
-                        <div>
-                            <strong>Interviews:</strong> ${stats.interviews}
-                        </div>
-                        <div>
-                            <strong>Success Rate:</strong> ${successRate}%
-                        </div>
-                    </div>
-                    <div style="margin-top: 10px; font-size: 13px;">
-                        <strong>Avg ATS Score:</strong> ${stats.avgAtsScore}%
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    let styleStatsHTML = '<p style="color: #666;">Nessun dato disponibile</p>';
-    if (Object.keys(learning.styleEffectiveness).length > 0) {
-        styleStatsHTML = Object.entries(learning.styleEffectiveness).map(([style, stats]) => {
-            const styleNames = {
-                'standard_it': '🇮🇹 Standard',
-                'bold_it': '🇮🇹 Bold',
-                'storytelling_it': '🇮🇹 Storytelling',
-                'standard_en': '🇬🇧 Standard',
-                'bold_en': '🇬🇧 Bold',
-                'storytelling_en': '🇬🇧 Storytelling'
-            };
-            return `
-                <div style="border: 2px solid #e0e0e0; padding: 12px; border-radius: 8px; background: #fafafa; margin-bottom: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="color: #333;">${styleNames[style] || style}</strong>
-                        <span style="background: ${stats.successRate >= 50 ? '#28a745' : '#ffc107'}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                            ${stats.successRate}% success
-                        </span>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                        Used: ${stats.used}x | Interviews: ${stats.interviews}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('statsModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h2 style="margin: 0 0 20px 0;">📊 Learning Statistics</h2>
-            
-            <div style="margin-bottom: 30px;">
-                <h3 style="color: #667eea; margin-bottom: 15px;">📈 Industry Performance</h3>
-                ${industryStatsHTML}
-            </div>
-            
-            <div>
-                <h3 style="color: #667eea; margin-bottom: 15px;">✍️ Cover Letter Style Effectiveness</h3>
-                ${styleStatsHTML}
-            </div>
-            
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #2196f3;">
-                <p style="margin: 0; font-size: 13px; color: #0d47a1;">
-                    💡 <strong>Tip:</strong> Usa questi dati per ottimizzare la tua strategia di candidatura. 
-                    Focus sulle industry con migliori success rate e usa gli stili cover letter più efficaci.
-                </p>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
-
-// ============================================
-// EXPORT/IMPORT HELPERS
-// ============================================
-
-function showExportInstructions() {
-    const modal = document.createElement('div');
-    modal.id = 'exportInstructionsModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
-            <h3 style="margin: 0 0 15px 0; color: #667eea;">✅ Backup Salvato!</h3>
-            <p style="margin: 0 0 15px 0; font-size: 14px;">Il file JSON è stato scaricato sul tuo computer.</p>
-            
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
-                <h4 style="margin: 0 0 10px 0; color: #0d47a1;">📂 Carica su Google Drive:</h4>
-                <ol style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8;">
-                    <li>Vai su <a href="https://drive.google.com" target="_blank" style="color: #2196f3;">drive.google.com</a></li>
-                    <li>Click "Nuovo" → "Caricamento file"</li>
-                    <li>Seleziona il file JSON appena scaricato</li>
-                    <li>Il file sarà disponibile su tutti i tuoi dispositivi</li>
-                </ol>
-            </div>
-            
-            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 13px; color: #856404;">
-                    💡 <strong>Tip:</strong> Fai backup regolari (ogni 10 candidature) per non perdere i tuoi dati.
-                </p>
-            </div>
-            
-            <button onclick="document.getElementById('exportInstructionsModal').remove()" 
-                    class="primary" 
-                    style="margin-top: 20px; width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px;">
-                OK, Capito!
-            </button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-function showImportDialog() {
-    const modal = document.createElement('div');
-    modal.id = 'importModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10001; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 30px; position: relative;">
-            <button onclick="document.getElementById('importModal').remove()" 
-                    style="position: absolute; top: 15px; right: 15px; border: none; background: #f5f5f5; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 20px;">×</button>
-            
-            <h3 style="margin: 0 0 20px 0;">📥 Importa Dati</h3>
-            
-            <div style="border: 2px dashed #667eea; border-radius: 8px; padding: 30px; text-align: center; background: #f8f9fa; margin-bottom: 15px;" 
-                 id="dropZone"
-                 ondragover="event.preventDefault(); this.style.background='#e3f2fd';"
-                 ondragleave="this.style.background='#f8f9fa';"
-                 ondrop="handleFileDrop(event)">
-                <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">📁 Trascina il file JSON qui</p>
-                <p style="margin: 0; font-size: 12px; color: #999;">oppure</p>
-                <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="handleFileSelect(event)">
-                <button onclick="document.getElementById('importFileInput').click()" 
-                        style="margin-top: 10px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                    Seleziona File
-                </button>
-            </div>
-            
-            <div style="background: #fff3cd; padding: 12px; border-radius: 8px; border-left: 4px solid #ff9800;">
-                <p style="margin: 0; font-size: 12px; color: #856404;">
-                    ⚠️ Potrai scegliere se unire o sovrascrivere i dati esistenti dopo aver selezionato il file.
-                </p>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-function handleFileDrop(event) {
-    event.preventDefault();
-    event.currentTarget.style.background = '#f8f9fa';
-    
-    const file = event.dataTransfer.files[0];
-    if (file && file.type === 'application/json') {
-        processImportFile(file);
-    } else {
-        alert('File non valido. Seleziona un file JSON.');
-    }
-}
-
-function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (file) {
-        processImportFile(file);
-    }
-}
-
-function processImportFile(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            StorageManager.importData(data);
-            
-            const modal = document.getElementById('importModal');
-            if (modal) modal.remove();
-            
-        } catch (error) {
-            alert('Errore lettura file: ' + error.message);
-        }
-    };
-    reader.readAsText(file);
-}
-
-// ============================================
-// GENERIC CV FUNCTIONS
-// ============================================
-
-function generateDocumentsGeneric() {
-    const cvText = document.getElementById('generic-cv').value.trim();
-    const jd = document.getElementById('generic-jd').value.trim();
-    
-    if (!cvText || !jd) {
-        alert('Compila tutti i campi obbligatori');
-        return;
-    }
-    
-    document.getElementById('loading-generic').classList.add('show');
-    document.getElementById('results-generic').classList.remove('show');
-    
-    setTimeout(async () => {
-        const keywords = await extractKeywordsAdvanced(jd, 15);
-        const atsScore = calculateATSScore(cvText, keywords);
-        
-        displayResultsGeneric(atsScore, keywords);
-        
-        document.getElementById('loading-generic').classList.remove('show');
-        document.getElementById('results-generic').classList.add('show');
-        document.getElementById('results-generic').scrollIntoView({ behavior: 'smooth' });
-    }, 15000);
-}
-
-function displayResultsGeneric(atsScore, keywords) {
-    let interpretation = '';
-    if (atsScore.score >= 70) interpretation = '✅ Ottimo match!';
-    else if (atsScore.score >= 50) interpretation = '⚠️ Buon match';
-    else interpretation = '❌ Match basso';
-    
-    const resultsHTML = `
-        <div class="card">
-            <div class="score-display">
-                <div class="score-number">${atsScore.score}%</div>
-                <div class="score-label">ATS Match Score</div>
-                <div class="score-interpretation">${interpretation}</div>
-            </div>
-            
-            <div class="keyword-section">
-                <h3>✅ Keyword Matchate (${atsScore.matchedKeywords})</h3>
-                <div class="keyword-tags">
-                    ${atsScore.matches.map(kw => `<span class="keyword-tag matched">${kw}</span>`).join('')}
-                </div>
-            </div>
-            
-            <div class="keyword-section">
-                <h3>⚠️ Keyword Mancanti (${atsScore.missing.length})</h3>
-                <div class="keyword-tags">
-                    ${atsScore.missing.slice(0, 10).map(kw => `<span class="keyword-tag missing">${kw}</span>`).join('')}
-                </div>
-            </div>
-            
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #2196f3;">
-                <p style="margin: 0; font-size: 13px; color: #0d47a1;">
-                    💡 <strong>Suggerimento:</strong> Aggiungi le keyword mancanti nel tuo CV per aumentare lo score ATS.
-                </p>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('results-generic').innerHTML = resultsHTML;
 }
 
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-
 function copyToClipboard(elementId) {
-    const element = document.getElementById(elementId);
-    const text = element.tagName === 'TEXTAREA' || element.tagName === 'INPUT' 
-        ? element.value 
-        : element.textContent;
+    const el = document.getElementById(elementId);
+    el.select();
+    document.execCommand('copy');
     
-    navigator.clipboard.writeText(text).then(() => {
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = '✅ Copiato!';
-        setTimeout(() => {
-            btn.textContent = originalText;
-        }, 2000);
-    }).catch(err => {
-        alert('Errore copia: ' + err);
-    });
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = '✅ Copiato!';
+    setTimeout(() => {
+        button.textContent = originalText;
+    }, 2000);
 }
 
 function downloadCoverLetter() {
-    const coverLetter = document.getElementById('editableCoverLetter').value;
-    const company = window.currentCompany || 'Company';
-    const role = window.currentRole || 'Role';
-    
-    const blob = new Blob([coverLetter], { type: 'text/plain' });
+    const text = document.getElementById('editableCoverLetter').value;
+    const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `CoverLetter_${company}_${role}_${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `cover_letter_${window.currentCompany}_${window.currentRole}.txt`.replace(/\s+/g, '_');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+// ============================================
+// GENERIC MODE (simplified)
+// ============================================
+async function generateDocumentsGeneric() {
+    const jd = document.getElementById('jdTextGeneric').value.trim();
+    
+    if (!jd) {
+        alert('Please paste a job description');
+        return;
+    }
+    
+    const loadingDiv = document.getElementById('loadingGeneric');
+    const resultsDiv = document.getElementById('resultsGeneric');
+    
+    loadingDiv.style.display = 'block';
+    resultsDiv.innerHTML = '';
+    
+    setTimeout(async () => {
+        const keywords = await extractKeywordsAdvanced(jd, 15);
+        
+        const cvText = uploadedCVText || 'No CV uploaded';
+        const atsScore = calculateATSScore(cvText, keywords);
+        
+        const resultsHTML = `
+            <div class="card">
+                <h3>${atsScore.score >= 70 ? '✅' : '⚠️'} ATS Score: ${atsScore.score}%</h3>
+                <p>${atsScore.matchedKeywords} keywords matched out of ${atsScore.totalKeywords}</p>
+                
+                ${atsScore.matches.length > 0 ? `
+                    <h4>Matched Keywords:</h4>
+                    <p>${atsScore.matches.join(', ')}</p>
+                ` : ''}
+                
+                ${atsScore.missing.length > 0 ? `
+                    <h4>Missing Keywords:</h4>
+                    <p>${atsScore.missing.join(', ')}</p>
+                ` : ''}
+                
+                <p style="margin-top: 20px; padding: 15px; background: #f0f4ff; border-radius: 6px;">
+                    💡 <strong>Suggestion:</strong> Add missing keywords to your CV where relevant and truthful.
+                </p>
+            </div>
+        `;
+        
+        resultsDiv.innerHTML = resultsHTML;
+        loadingDiv.style.display = 'none';
+    }, 45000);
 }
 
 function handleCVUpload(event) {
@@ -2352,104 +1792,26 @@ function handleCVUpload(event) {
     
     const reader = new FileReader();
     
-    if (file.type === 'application/pdf') {
-        reader.onload = async (e) => {
-            const arrayBuffer = e.target.result;
-            uploadedCVText = await extractTextFromPDF(arrayBuffer);
-            
-            if (uploadedCVText.trim().length > 50) {
-                alert(`✅ PDF caricato: ${file.name}\n\n${uploadedCVText.length} caratteri estratti`);
-            } else {
-                alert('⚠️ Testo estratto troppo breve. Prova con DOCX o copia/incolla manualmente.');
-            }
+    if (file.name.endsWith('.pdf')) {
+        reader.onload = (e) => {
+            uploadedCVText = extractTextFromPDF(e.target.result);
+            alert(`PDF loaded: ${uploadedFileName}`);
         };
         reader.readAsArrayBuffer(file);
-        
-    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        alert('⚠️ Upload DOCX non supportato direttamente. Copia/incolla il testo del CV nella textarea.');
-        
-    } else {
+    } else if (file.name.endsWith('.txt')) {
         reader.onload = (e) => {
             uploadedCVText = e.target.result;
-            alert(`✅ File caricato: ${file.name}`);
+            alert(`Text file loaded: ${uploadedFileName}`);
         };
         reader.readAsText(file);
+    } else {
+        alert('Please upload a PDF or TXT file');
     }
-}
-
-// ============================================
-// QUEUE MODE (Chrome Extension Integration)
-// ============================================
-
-function loadQueueMode() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const mode = urlParams.get('mode');
-    
-    if (mode === 'queue') {
-        const queueData = urlParams.get('data');
-        if (queueData) {
-            try {
-                const queue = JSON.parse(decodeURIComponent(queueData));
-                displayQueueJobs(queue);
-            } catch (error) {
-                console.error('Error loading queue:', error);
-            }
-        }
-    }
-}
-
-function displayQueueJobs(queue) {
-    if (queue.length === 0) return;
-    
-    const modal = document.createElement('div');
-    modal.id = 'queueModal';
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;';
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px;">
-            <h2 style="margin: 0 0 20px 0;">📂 Job Queue (${queue.length})</h2>
-            <p style="margin: 0 0 20px 0; color: #666;">Seleziona i job da processare:</p>
-            
-            <div style="display: grid; gap: 15px; margin-bottom: 20px;">
-                ${queue.map((job, index) => `
-                    <div style="border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background: #fafafa;">
-                        <input type="checkbox" id="job_${index}" checked style="margin-right: 10px;">
-                        <label for="job_${index}" style="font-weight: 600;">${job.company} - ${job.role}</label>
-                        <p style="margin: 10px 0 0 25px; font-size: 13px; color: #666;">${job.description.substring(0, 150)}...</p>
-                    </div>
-                `).join('')}
-            </div>
-            
-            <button onclick="processQueueJobs(${JSON.stringify(queue).replace(/"/g, '&quot;')})" class="primary" style="width: 100%; padding: 15px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">
-                🚀 Processa Selezionati
-            </button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-function processQueueJobs(queue) {
-    const selectedJobs = queue.filter((job, index) => 
-        document.getElementById(`job_${index}`).checked
-    );
-    
-    if (selectedJobs.length === 0) {
-        alert('Seleziona almeno un job');
-        return;
-    }
-    
-    const modal = document.getElementById('queueModal');
-    if (modal) modal.remove();
-    
-    alert(`Processando ${selectedJobs.length} job. Questa feature sarà implementata nella V5!`);
 }
 
 // ============================================
 // INITIALIZATION
 // ============================================
-
-if (typeof document !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', () => {
-        checkFeedbackStatus();
-        loadQueueMode();
-    });
-}
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Job Application System V4.2 loaded');
+});
