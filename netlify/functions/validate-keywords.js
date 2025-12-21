@@ -29,7 +29,57 @@ exports.handler = async (event, context) => {
     }
     
     try {
-        const { keywords, jdText } = JSON.parse(event.body);
+       const body = JSON.parse(event.body);
+        
+        // Support both keyword validation AND cover letter generation
+        if (body.prompt) {
+            // Cover letter generation mode
+            const prompt = body.prompt;
+            const maxTokens = body.maxTokens || 800;
+            
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.ANTHROPIC_API_KEY,
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: maxTokens,
+                    messages: [{ role: 'user', content: prompt }]
+                })
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Claude API error:', response.status, errorText);
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({ 
+                        coverLetter: null,
+                        fallback: true,
+                        error: `Claude API returned ${response.status}`
+                    })
+                };
+            }
+            
+            const data = await response.json();
+            const coverLetter = data.content[0].text.trim();
+            
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({ 
+                    coverLetter,
+                    fallback: false
+                })
+            };
+        }
+        
+        // Original keyword validation mode
+        const { keywords, jdText } = body;
         
         if (!keywords || !jdText) {
             return {
