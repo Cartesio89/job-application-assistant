@@ -1565,44 +1565,7 @@ async function generateDocumentsMartino() {
             }
             
             const cvText = `${martinoProfile.name}\n${martinoProfile.coreSkills.join(', ')}\n${aboutMe}`;
-```
 
----
-
-# 📋 RIEPILOGO MODIFICHE
-
-**4 modifiche totali:**
-
-1. ✅ **Timeout 60s** (PARTE 4)
-2. ✅ **3 nuove funzioni API** (PARTE 3, dopo cover letter AI)
-3. ✅ **Integra About Me + CV Suggestions** (PARTE 4)
-4. ✅ **Integra Gap Analysis** (PARTE 4)
-
----
-
-# 💰 NUOVO COSTO API
-
-**Per ogni job:**
-- Cover Letter: $0.003
-- About Me: $0.002
-- CV Suggestions: $0.003
-- Gap Analysis: $0.003
-- **TOTALE: $0.011 per job**
-
-**30 candidature/mese:**
-- **€0.30/mese** (~30 centesimi)
-
-**ANCORA IRRISORIO!** ✅
-
----
-
-# ⏱️ NUOVO TIMING
-```
-0-30s:  Keyword extraction (local, fast)
-30-45s: Cover Letter API
-45-55s: About Me + CV Suggestions API (parallel)
-55-60s: Gap Analysis API
-TOTALE: 60 secondi
             const atsScore = calculateATSScore(cvText, keywords);
             
             const detectedEmail = extractEmailFromJD(jd);
@@ -1632,7 +1595,7 @@ TOTALE: 60 secondi
             loadingDiv.style.display = 'none';
             alert('Error generating documents. Check console for details.');
         }
-    }, 30000);
+    }, 60000);
 }
 // Part 5: Display Results (with Gap Analysis + Keywords), History, Generic Mode, File Handlers
 
@@ -2077,7 +2040,7 @@ async function generateDocumentsGeneric() {
         
         resultsDiv.innerHTML = resultsHTML;
         loadingDiv.style.display = 'none';
-    }, 65000);
+    }, 60000);
 }
 
 function handleCVUpload(event) {
