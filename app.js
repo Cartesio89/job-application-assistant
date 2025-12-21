@@ -1031,24 +1031,20 @@ ${jdText.substring(0, 1000)}
 
 TASK: Identify 2-4 critical skill gaps and provide positioning strategies.
 
-FORMAT (in Italian):
-For each gap, provide:
-1. gap: "[Missing Skill/Tool/Experience]"
-2. analysis: "[Do you have this? If yes, ADD IT. If no, is it learnable?]"
-3. positioning: "[Strategy to position existing experience as transferable]"
+CRITICAL RULES:
+1. Output ONLY valid JSON - NO markdown, NO backticks, NO explanations
+2. Maximum 3 gaps
+3. Write in Italian
+4. Keep each field under 150 characters
+5. NO line breaks inside strings
 
-Output as JSON array:
-[
-  {
-    "gap": "...",
-    "analysis": "...",
-    "positioning": "..."
-  }
-]
+Output format (EXACTLY like this, nothing else):
+[{"gap":"Skill Name","analysis":"Short analysis","positioning":"Strategy here"}]
 
-Focus on CRITICAL gaps only (tools, platforms, industry knowledge).
-Be HONEST about what's missing.
-Provide CREATIVE positioning strategies to bridge gaps.`;
+Example:
+[{"gap":"CRM Platform Management","analysis":"Hai usato tool di customer data? Aggiungilo al CV.","positioning":"Inquadra Power BI come 'CRM data management' - è skill trasferibile"}]
+
+Now generate 2-3 critical gaps for this candidate in the EXACT format above.`;
 
         const response = await fetch('/.netlify/functions/validate-keywords', {
             method: 'POST',
@@ -1068,15 +1064,35 @@ Provide CREATIVE positioning strategies to bridge gaps.`;
         
         if (data.coverLetter) {
             try {
-                const cleanText = data.coverLetter.replace(/```json|```/g, '').trim();
+                // Aggressive cleanup
+                let cleanText = data.coverLetter
+                    .replace(/```json|```javascript|```/g, '')  // Remove markdown
+                    .replace(/^[^[]*/, '')  // Remove everything before first [
+                    .replace(/[^\]]*$/, '')  // Remove everything after last ]
+                    .trim();
+                
+                // Ensure it starts with [ and ends with ]
+                if (!cleanText.startsWith('[')) {
+                    cleanText = '[' + cleanText;
+                }
+                if (!cleanText.endsWith(']')) {
+                    cleanText = cleanText + ']';
+                }
+                
+                // Log for debugging
+                console.log('📋 Attempting to parse:', cleanText.substring(0, 100) + '...');
+                
                 const gaps = JSON.parse(cleanText);
                 
-                if (Array.isArray(gaps) && gaps.length > 0) {
-                    console.log('✅ AI Gap Analysis generated successfully');
+                if (Array.isArray(gaps) && gaps.length > 0 && gaps[0].gap) {
+                    console.log('✅ AI Gap Analysis generated successfully:', gaps.length, 'gaps');
                     return gaps;
+                } else {
+                    console.warn('⚠️ Parsed but invalid structure');
                 }
             } catch (parseError) {
-                console.warn('⚠️ AI Gap Analysis parse error, using local fallback');
+                console.error('⚠️ AI Gap Analysis parse error:', parseError.message);
+                console.log('Raw response:', data.coverLetter.substring(0, 200));
             }
         }
         
