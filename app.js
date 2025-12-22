@@ -2092,3 +2092,245 @@ function handleCVUpload(event) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Job Application System V4.2 loaded');
 });
+// ============================================
+// FEEDBACK & LEARNING TRACKING SYSTEM
+// ============================================
+// ADD THIS TO APP.JS AFTER displayResultsMartino FUNCTION
+
+// Get jobId from URL if came from extension
+const urlParams = new URLSearchParams(window.location.search);
+const jobIdFromExtension = urlParams.get('jobId');
+
+// When email is sent, update job status in extension storage
+function notifyExtensionJobApplied(analysisId, jobId) {
+    if (!jobId) return;
+    
+    // Store in localStorage for sync with extension
+    const appliedJobs = JSON.parse(localStorage.getItem('appliedJobs') || '[]');
+    appliedJobs.push({
+        jobId: jobId,
+        analysisId: analysisId,
+        appliedAt: new Date().toISOString(),
+        company: currentAnalysisResults.company,
+        role: currentAnalysisResults.role
+    });
+    localStorage.setItem('appliedJobs', JSON.stringify(appliedJobs));
+    
+    console.log('✅ Job marked as applied:', jobId);
+}
+
+// Modify approveAndSendEmail function (FIND THIS IN APP.JS)
+// ADD this line AFTER StorageManager.markAsSent():
+function approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis) {
+    const result = sendApplicationEmail(recipientEmail, analysis.company, analysis.role, coverLetter);
+    
+    if (result.success) {
+        StorageManager.markAsSent(analysisId, { recipientEmail });
+        
+        // NEW: Notify extension if job came from there
+        if (jobIdFromExtension) {
+            notifyExtensionJobApplied(analysisId, jobIdFromExtension);
+        }
+        
+        showSuccessModal(analysis.company);
+    } else {
+        alert(result.error);
+    }
+}
+
+// Add feedback reminder to success modal (MODIFY showSuccessModal)
+function showSuccessModal(company) {
+    const modal = `
+        <div id="successModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+                <h2 style="color: #4CAF50; margin-top: 0;">Email Opened in Gmail!</h2>
+                <p style="margin: 20px 0;">Remember to:</p>
+                <ol style="text-align: left; margin: 20px 0;">
+                    <li style="margin-bottom: 10px;">📎 <strong>Attach your CV PDF/DOCX</strong></li>
+                    <li style="margin-bottom: 10px;">📂 Attach portfolio (if applicable)</li>
+                    <li style="margin-bottom: 10px;">✉️ Click Send in Gmail</li>
+                </ol>
+                
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: left;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold; color: #1565c0;">📅 Follow-up Reminder:</p>
+                    <p style="margin: 0; font-size: 14px; color: #424242;">Add feedback in History after <strong>7-14 days</strong> to track outcome and improve future applications.</p>
+                </div>
+                
+                <p style="font-size: 13px; color: #666; margin-top: 10px;">💡 Tip: Install Mailtrack to see when ${company} opens your email</p>
+                
+                <button onclick="document.getElementById('successModal').remove()" style="margin-top: 20px; padding: 12px 30px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    Got it!
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modal);
+}
+
+// Add feedback form to history items (ENHANCE showFeedbackForm)
+function showFeedbackForm(analysisId) {
+    const entry = StorageManager.getAnalysis(analysisId);
+    if (!entry) return;
+    
+    const modalHTML = `
+        <div id="feedbackModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; overflow-y: auto;">
+            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <h2 style="margin-top: 0;">📝 Application Feedback</h2>
+                
+                <p style="margin-bottom: 20px;"><strong>${entry.company}</strong> - ${entry.role}</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Outcome *</label>
+                    <select id="feedbackOutcome" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                        <option value="">Select outcome...</option>
+                        <option value="no_response">No Response</option>
+                        <option value="rejected_auto">Rejected (Automated)</option>
+                        <option value="rejected_screening">Rejected After Screening</option>
+                        <option value="rejected_interview">Rejected After Interview</option>
+                        <option value="interview_scheduled">Interview Scheduled</option>
+                        <option value="offer_received">Offer Received</option>
+                        <option value="offer_accepted">Offer Accepted</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Response Time</label>
+                    <input type="number" id="feedbackDays" placeholder="Days until response" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">ATS Score (from this tool)</label>
+                    <input type="text" value="${entry.atsScore}%" disabled style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; background: #f5f5f5;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px;">Notes / Lessons Learned</label>
+                    <textarea id="feedbackNotes" placeholder="What worked? What didn't? Any insights for next time..." style="width: 100%; min-height: 100px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;"></textarea>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 13px;">
+                    <strong>💡 Learning Tips:</strong>
+                    <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                        <li>If rejected: What keywords were missing?</li>
+                        <li>If interviewed: What questions caught you off-guard?</li>
+                        <li>If no response: Was ATS score too low?</li>
+                    </ul>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveFeedback(${analysisId})" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                        💾 Save Feedback
+                    </button>
+                    <button onclick="document.getElementById('feedbackModal').remove()" style="flex: 1; padding: 12px; background: #666; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function saveFeedback(analysisId) {
+    const outcome = document.getElementById('feedbackOutcome').value;
+    const days = document.getElementById('feedbackDays').value;
+    const notes = document.getElementById('feedbackNotes').value;
+    
+    if (!outcome) {
+        alert('Please select an outcome');
+        return;
+    }
+    
+    const feedbackData = {
+        outcome: outcome,
+        responseDays: days ? parseInt(days) : null,
+        notes: notes,
+        feedbackDate: new Date().toISOString()
+    };
+    
+    StorageManager.updateFeedback(analysisId, feedbackData);
+    
+    document.getElementById('feedbackModal').remove();
+    
+    // Show success message
+    const successMsg = document.createElement('div');
+    successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 15px 20px; border-radius: 8px; z-index: 10001; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+    successMsg.textContent = '✅ Feedback saved! Thank you for tracking.';
+    document.body.appendChild(successMsg);
+    
+    setTimeout(() => successMsg.remove(), 3000);
+    
+    // Reload history if open
+    if (document.getElementById('historyModal')) {
+        document.getElementById('historyModal').remove();
+        showHistory();
+    }
+}
+
+// Analytics: Calculate success rate from feedback
+function getApplicationStats() {
+    const history = StorageManager.getHistory();
+    const withFeedback = history.filter(h => h.feedbackCompleted);
+    
+    if (withFeedback.length === 0) return null;
+    
+    const stats = {
+        total: withFeedback.length,
+        noResponse: withFeedback.filter(h => h.outcome === 'no_response').length,
+        rejected: withFeedback.filter(h => h.outcome?.includes('rejected')).length,
+        interviewed: withFeedback.filter(h => h.outcome?.includes('interview')).length,
+        offers: withFeedback.filter(h => h.outcome?.includes('offer')).length,
+        avgResponseDays: 0
+    };
+    
+    const withResponseTime = withFeedback.filter(h => h.responseDays);
+    if (withResponseTime.length > 0) {
+        stats.avgResponseDays = Math.round(
+            withResponseTime.reduce((sum, h) => sum + h.responseDays, 0) / withResponseTime.length
+        );
+    }
+    
+    stats.responseRate = Math.round(((stats.total - stats.noResponse) / stats.total) * 100);
+    stats.interviewRate = Math.round((stats.interviewed / stats.total) * 100);
+    
+    return stats;
+}
+
+// Display stats in history modal (ADD TO showHistory FUNCTION at the top)
+// MODIFY showHistory to include stats at top:
+function showHistory() {
+    const history = StorageManager.getHistory();
+    const stats = getApplicationStats();
+    
+    let statsHTML = '';
+    if (stats) {
+        statsHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0;">📊 Your Stats</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.total}</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Applications</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.responseRate}%</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Response Rate</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.interviewRate}%</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Interview Rate</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.avgResponseDays}</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Avg Days</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ... rest of showHistory function with statsHTML at top
+}
