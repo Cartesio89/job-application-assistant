@@ -2274,28 +2274,28 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Job Application System V4.2 loaded');
 
     // === QUEUE MODE: pre-popola da estensione Chrome ===
+    // Dati leggeri (title/company/location) via URL params.
+    // Description iniettata via executeScript dall'estensione dopo caricamento (evita HTTP 414).
     const urlParams = new URLSearchParams(window.location.search);
-    const queueData = urlParams.get('data');
     const mode = urlParams.get('mode');
 
-    if (mode === 'queue' && queueData) {
-        try {
-            const jobs = JSON.parse(decodeURIComponent(queueData));
-            if (jobs && jobs.length > 0) {
-                const job = jobs[0];
-                if (job.title) document.getElementById('roleName').value = job.title;
-                if (job.company) document.getElementById('companyName').value = job.company;
-                if (job.location) document.getElementById('location').value = job.location;
-                if (job.description) document.getElementById('jdText').value = job.description;
+    if (mode === 'queue') {
+        const title    = urlParams.get('title')    || '';
+        const company  = urlParams.get('company')  || '';
+        const location = urlParams.get('location') || '';
+        const total    = parseInt(urlParams.get('total') || '1', 10);
 
-                const banner = document.createElement('div');
-                banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #667eea; color: white; padding: 12px 20px; text-align: center; z-index: 9999; font-size: 14px; font-family: -apple-system, sans-serif;';
-                banner.innerHTML = `✅ ${jobs.length} posizione/i caricata/e dall’estensione. ${jobs.length > 1 ? `<strong>${jobs.length} annunci in coda</strong> - analizza il primo, poi usa il pulsante Back per gli altri.` : ''} <button onclick="this.parentElement.remove()" style="margin-left: 15px; background: white; color: #667eea; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer;">×</button>`;
-                document.body.prepend(banner);
-                setTimeout(() => { if (banner.parentElement) banner.remove(); }, 8000);
-            }
-        } catch(e) {
-            console.warn('Queue data parse error:', e);
+        if (title || company) {
+            if (title)    document.getElementById('roleName').value    = title;
+            if (company)  document.getElementById('companyName').value = company;
+            const locEl = document.getElementById('location');
+            if (location && locEl) locEl.value = location;
+
+            const banner = document.createElement('div');
+            banner.id = 'ext-queue-banner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#667eea;color:white;padding:12px 20px;text-align:center;z-index:9999;font-size:14px;font-family:-apple-system,sans-serif;';
+            banner.innerHTML = `⏳ Caricamento dati dall\'estensione... ${total > 1 ? '(' + total + ' annunci in coda)' : ''} <button onclick="this.parentElement.remove()" style="margin-left:15px;background:white;color:#667eea;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;">✕</button>`;
+            document.body.prepend(banner);
         }
     }
 });
