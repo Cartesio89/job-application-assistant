@@ -155,7 +155,28 @@ const stopwords = new Set([
     'have', 'has', 'had', 'can', 'could', 'may', 'might',
     'do', 'does', 'did', 'make', 'get', 'go',
     'not', 'no', 'yes', 'very', 'too', 'also', 'just',
-    'job', 'position', 'role', 'work', 'looking', 'seeking'
+    'job', 'position', 'role', 'work', 'looking', 'seeking',
+    // Forme generiche italiane aggiuntive
+    'esperienza', 'esperienze', 'competenza', 'competenze', 'capacità',
+    'capacita', 'gestione', 'attività', 'attivita', 'sviluppo',
+    'conoscenza', 'conoscenze', 'ottima', 'ottimo', 'buona', 'buono',
+    'forte', 'forti', 'buone', 'buoni', 'base', 'solida', 'solido',
+    'principali', 'principale', 'diverse', 'diversi', 'varie', 'vari',
+    'elevata', 'elevato', 'adeguata', 'adeguato', 'necessaria', 'necessario',
+    'richiesta', 'richiesto', 'richieste', 'richiesti', 'preferibile',
+    'figura', 'profilo', 'riferimento', 'responsabilità', 'responsabilita',
+    'settore', 'mercato', 'cliente', 'clienti', 'servizio', 'servizi',
+    'prodotto', 'prodotti', 'risultati', 'obiettivi', 'obiettivo',
+    'contesto', 'realtà', 'realta', 'ambito', 'area', 'aree',
+    'anno', 'anni', 'mese', 'mesi', 'giorno', 'giorni',
+    'essere', 'avere', 'fare', 'sapere', 'volere', 'potere', 'dovere',
+    'nella', 'nello', 'negli', 'nelle', 'dello', 'della', 'degli', 'delle',
+    'will', 'your', 'our', 'their', 'from', 'with', 'into', 'about',
+    'through', 'strong', 'good', 'great', 'high', 'key', 'new', 'best',
+    'able', 'skills', 'skill', 'year', 'years', 'experience', 'knowledge',
+    'team', 'company', 'business', 'management', 'project', 'product',
+    'ability', 'ability', 'ensure', 'support', 'build', 'drive', 'lead',
+    'work', 'working', 'manage', 'develop', 'create', 'provide', 'define'
 ]);
 
 function extractBigrams(text) {
@@ -665,7 +686,7 @@ Gentile Team Selezione ${company},
 
 desidero candidarmi per la posizione di ${role}. Con oltre ${profile.yearsExp} anni di esperienza in digital marketing e gestione di campagne per brand internazionali, ritengo di poter portare un contributo concreto al vostro team.
 
-Nel mio ruolo attuale di Digital Consultant presso UM Italia, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. L'esperienza diretta nell'analisi dei trend di mercato, nella collaborazione con team cross-funzionali (IT, Legali, Marketing) per portare prodotti digitali sul mercato, nella collaborazione con team cross-funzionali per garantire esecuzione ottimale delle campagne.
+Nel mio ruolo attuale di Digital Consultant presso UM Italia, mi occupo della definizione di strategie digitali annuali e del lancio di nuovi prodotti per clienti automotive, fashion e medical device. L'esperienza diretta nell'analisi dei trend di mercato e nella collaborazione con team cross-funzionali (IT, Legali, Marketing) per portare prodotti digitali sul mercato garantisce una esecuzione ottimale delle campagne.
 
 Un aspetto che mi differenzia è l'integrazione di competenze in AI applicate al marketing, certificate attraverso corsi specializzati (AI for Marketing, Fastweb Digital Academy). Sono motivato dalla possibilità di contribuire agli obiettivi di ${company} e mettere a disposizione un approccio analitico e orientato ai risultati.
 
@@ -1428,17 +1449,6 @@ ${coverLetter}
     });
 }
 
-function approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis) {
-    const result = sendApplicationEmail(recipientEmail, analysis.company, analysis.role, coverLetter);
-    
-    if (result.success) {
-        StorageManager.markAsSent(analysisId, { recipientEmail });
-        showSuccessModal(analysis.company);
-    } else {
-        alert(result.error);
-    }
-}
-
 function sendApplicationEmail(recipientEmail, company, role, coverLetter) {
     const subject = `Candidatura per ${role} - ${martinoProfile.name}`;
     const body = coverLetter;
@@ -1457,35 +1467,11 @@ function sendApplicationEmail(recipientEmail, company, role, coverLetter) {
     return { success: true };
 }
 
-function showSuccessModal(company) {
-    const modal = `
-        <div id="successModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; display: flex; align-items: center; justify-content: center;">
-            <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
-                <h2 style="color: #4CAF50; margin-top: 0;">Email Opened in Gmail!</h2>
-                <p style="margin: 20px 0;">Remember to:</p>
-                <ol style="text-align: left; margin: 20px 0;">
-                    <li style="margin-bottom: 10px;">📎 <strong>Attach your CV PDF/DOCX</strong></li>
-                    <li style="margin-bottom: 10px;">📂 Attach your portfolio (if applicable)</li>
-                    <li style="margin-bottom: 10px;">✉️ Click Send in Gmail</li>
-                </ol>
-                <p style="font-size: 13px; color: #666; margin-top: 20px;">💡 Tip: Install Mailtrack to see when ${company} opens your email</p>
-                <p style="font-size: 13px; color: #666; margin-top: 10px;">⏰ Reminder: Add feedback in 15 days</p>
-                <button onclick="document.getElementById('successModal').remove()" style="margin-top: 20px; padding: 12px 30px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                    Got it!
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', modal);
-}
-
 // ============================================
 // TAB SWITCHING
 // ============================================
 function switchTab(tabName) {
-    document.querySelectorAll('.tab-button').forEach(btn => {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     
@@ -1493,7 +1479,7 @@ function switchTab(tabName) {
         content.classList.remove('active');
     });
     
-    const activeButton = Array.from(document.querySelectorAll('.tab-button')).find(btn => 
+    const activeButton = Array.from(document.querySelectorAll('.tab-btn')).find(btn => 
         btn.textContent.toLowerCase().includes(tabName.toLowerCase())
     );
     if (activeButton) {
@@ -1580,7 +1566,14 @@ async function generateDocumentsMartino() {
                 console.log('⚠️ Using local gap analysis (AI fallback)');
             }
             
-            const cvText = `${martinoProfile.name}\n${martinoProfile.coreSkills.join(', ')}\n${aboutMe}`;
+            // ATS: usa testo più completo (skills + aboutMe + cover letter + suggerimenti)
+            const cvText = [
+                martinoProfile.name,
+                martinoProfile.coreSkills.join(', '),
+                aboutMe,
+                coverLetterVariants.standard_it || '',
+                detailedSuggestions.skillsToHighlight.join(', ')
+            ].join('\n');
 
             const atsScore = calculateATSScore(cvText, keywords);
             
@@ -1892,18 +1885,46 @@ function switchCoverLetterVariant() {
 // ============================================
 function showHistory() {
     const history = StorageManager.getHistory();
-    
+    const stats = getApplicationStats();
+
     const statusBadge = (entry) => {
         if (entry.feedbackCompleted) return '<span style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">✅ Completed</span>';
         if (entry.emailSent) return '<span style="background: #2196f3; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">📧 Sent</span>';
         return '<span style="background: #ff9800; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">📝 Draft</span>';
     };
-    
+
+    let statsHTML = '';
+    if (stats) {
+        statsHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0;">📊 Le Tue Statistiche</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.total}</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Candidature</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.responseRate}%</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Tasso Risposta</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.interviewRate}%</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Tasso Colloqui</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold;">${stats.avgResponseDays}</div>
+                        <div style="font-size: 12px; opacity: 0.9;">Gg Medi Risposta</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     const modalHTML = `
         <div id="historyModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; padding: 20px;">
             <div style="max-width: 1000px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px;">
                 <h2 style="margin-top: 0;">📂 Cronologia Candidature</h2>
-                
+                ${statsHTML}
                 ${history.length === 0 ? '<p>Nessuna candidatura salvata.</p>' : `
                 <div style="display: grid; gap: 15px;">
                     ${history.map(entry => `
@@ -1915,18 +1936,15 @@ function showHistory() {
                                 </div>
                                 ${statusBadge(entry)}
                             </div>
-                            
                             <div style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 13px;">
                                 <span>ATS Score: <strong>${entry.atsScore}%</strong></span>
                                 ${entry.recipientEmail ? `<span>Email: <strong>${entry.recipientEmail}</strong></span>` : ''}
                             </div>
-                            
                             ${entry.feedbackCompleted ? `
                                 <div style="background: #e8f5e9; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
-                                    ✅ Feedback: ${entry.outcome}
+                                    ✅ Esito: ${entry.outcome}
                                 </div>
                             ` : ''}
-                            
                             <div style="display: flex; gap: 10px; margin-top: 10px;">
                                 <button onclick="reloadAnalysis(${entry.id})" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
                                     🔄 Ricarica
@@ -1944,77 +1962,21 @@ function showHistory() {
                     `).join('')}
                 </div>
                 `}
-                
                 <div style="margin-top: 20px; display: flex; gap: 10px;">
                     <button onclick="StorageManager.exportData()" style="padding: 12px 20px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer;">
                         💾 Export Backup
                     </button>
                     <button onclick="document.getElementById('historyModal').remove()" style="padding: 12px 20px; background: #666; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                        Close
+                        Chiudi
                     </button>
                 </div>
             </div>
         </div>
     `;
-    
+
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
-function reloadAnalysis(id) {
-    const entry = StorageManager.getAnalysis(id);
-    if (!entry) return;
-    
-    document.getElementById('companyName').value = entry.company;
-    document.getElementById('roleName').value = entry.role;
-    
-    const fullResults = entry.fullResults;
-    displayResultsMartino(fullResults, id);
-    
-    switchTab('martino');
-    
-    document.getElementById('historyModal').remove();
-    
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function deleteAnalysis(id) {
-    StorageManager.deleteAnalysis(id);
-    document.getElementById('historyModal').remove();
-    showHistory();
-}
-
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-function copyToClipboard(elementId) {
-    const el = document.getElementById(elementId);
-    el.select();
-    document.execCommand('copy');
-    
-    const button = event.target;
-    const originalText = button.textContent;
-    button.textContent = '✅ Copiato!';
-    setTimeout(() => {
-        button.textContent = originalText;
-    }, 2000);
-}
-
-function downloadCoverLetter() {
-    const text = document.getElementById('editableCoverLetter').value;
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cover_letter_${window.currentCompany}_${window.currentRole}.txt`.replace(/\s+/g, '_');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-// ============================================
-// GENERIC MODE (simplified)
-// ============================================
 async function generateDocumentsGeneric() {
     const jd = document.getElementById('jdTextGeneric').value.trim();
     
@@ -2089,9 +2051,7 @@ function handleCVUpload(event) {
 // ============================================
 // INITIALIZATION
 // ============================================
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Job Application System V4.2 loaded');
-});
+
 // ============================================
 // FEEDBACK & LEARNING TRACKING SYSTEM
 // ============================================
@@ -2300,37 +2260,42 @@ function getApplicationStats() {
 }
 
 // Display stats in history modal (ADD TO showHistory FUNCTION at the top)
-// MODIFY showHistory to include stats at top:
-function showHistory() {
-    const history = StorageManager.getHistory();
-    const stats = getApplicationStats();
-    
-    let statsHTML = '';
-    if (stats) {
-        statsHTML = `
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="margin: 0 0 15px 0;">📊 Your Stats</h3>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold;">${stats.total}</div>
-                        <div style="font-size: 12px; opacity: 0.9;">Applications</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold;">${stats.responseRate}%</div>
-                        <div style="font-size: 12px; opacity: 0.9;">Response Rate</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold;">${stats.interviewRate}%</div>
-                        <div style="font-size: 12px; opacity: 0.9;">Interview Rate</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold;">${stats.avgResponseDays}</div>
-                        <div style="font-size: 12px; opacity: 0.9;">Avg Days</div>
-                    </div>
-                </div>
-            </div>
-        `;
+
+// ============================================
+// ALIAS FUNZIONI (compatibilità nome HTML↔JS)
+// ============================================
+function analyzeGenericCV() { return generateDocumentsGeneric(); }
+function handleFileUpload(event) { return handleCVUpload(event); }
+
+// ============================================
+// INIZIALIZZAZIONE + QUEUE MODE
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Job Application System V4.2 loaded');
+
+    // === QUEUE MODE: pre-popola da estensione Chrome ===
+    const urlParams = new URLSearchParams(window.location.search);
+    const queueData = urlParams.get('data');
+    const mode = urlParams.get('mode');
+
+    if (mode === 'queue' && queueData) {
+        try {
+            const jobs = JSON.parse(decodeURIComponent(queueData));
+            if (jobs && jobs.length > 0) {
+                const job = jobs[0];
+                if (job.title) document.getElementById('roleName').value = job.title;
+                if (job.company) document.getElementById('companyName').value = job.company;
+                if (job.location) document.getElementById('location').value = job.location;
+                if (job.description) document.getElementById('jdText').value = job.description;
+
+                const banner = document.createElement('div');
+                banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #667eea; color: white; padding: 12px 20px; text-align: center; z-index: 9999; font-size: 14px; font-family: -apple-system, sans-serif;';
+                banner.innerHTML = `✅ ${jobs.length} posizione/i caricata/e dall’estensione. ${jobs.length > 1 ? `<strong>${jobs.length} annunci in coda</strong> - analizza il primo, poi usa il pulsante Back per gli altri.` : ''} <button onclick="this.parentElement.remove()" style="margin-left: 15px; background: white; color: #667eea; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer;">×</button>`;
+                document.body.prepend(banner);
+                setTimeout(() => { if (banner.parentElement) banner.remove(); }, 8000);
+            }
+        } catch(e) {
+            console.warn('Queue data parse error:', e);
+        }
     }
-    
-    // ... rest of showHistory function with statsHTML at top
-}
+});
