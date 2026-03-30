@@ -2296,6 +2296,37 @@ document.addEventListener('DOMContentLoaded', () => {
             banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#667eea;color:white;padding:12px 20px;text-align:center;z-index:9999;font-size:14px;font-family:-apple-system,sans-serif;';
             banner.innerHTML = `⏳ Caricamento dati dall\'estensione... ${total > 1 ? '(' + total + ' annunci in coda)' : ''} <button onclick="this.parentElement.remove()" style="margin-left:15px;background:white;color:#667eea;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;">✕</button>`;
             document.body.prepend(banner);
+
+            // === BRIDGE localStorage: polling per descrizione iniettata da estensione ===
+            // L'estensione scrive ext_pending_description via executeScript.
+            // Qui facciamo polling per max 15 secondi e lo leggiamo non appena disponibile.
+            const jdEl = document.getElementById('jdText');
+            if (jdEl) {
+                // Pulisci eventuali descrizioni vecchie (> 5 minuti)
+                const oldTs = parseInt(localStorage.getItem('ext_pending_ts') || '0', 10);
+                if (Date.now() - oldTs > 300000) {
+                    localStorage.removeItem('ext_pending_description');
+                    localStorage.removeItem('ext_pending_ts');
+                }
+
+                let pollCount = 0;
+                const pollDesc = setInterval(() => {
+                    pollCount++;
+                    const pending = localStorage.getItem('ext_pending_description');
+                    const pendingTs = parseInt(localStorage.getItem('ext_pending_ts') || '0', 10);
+                    const isRecent = (Date.now() - pendingTs) < 30000; // max 30s di ritardo
+
+                    if (pending && isRecent && jdEl.value.length < 10) {
+                        jdEl.value = pending;
+                        // Rimuovi dopo lettura per non riutilizzare in sessioni future
+                        localStorage.removeItem('ext_pending_description');
+                        localStorage.removeItem('ext_pending_ts');
+                        clearInterval(pollDesc);
+                    } else if (pollCount >= 30) {
+                        clearInterval(pollDesc); // stop dopo 15s
+                    }
+                }, 500);
+            }
         }
     }
 });
