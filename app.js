@@ -548,26 +548,38 @@ function getCompetitivenessLevel(score) {
 // ============================================
 // PDF TEXT EXTRACTION
 // ============================================
-function extractTextFromPDF(arrayBuffer) {
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let text = '';
-    
-    for (let i = 0; i < uint8Array.length - 1; i++) {
-        const char = uint8Array[i];
-        if ((char >= 32 && char <= 126) || 
-            (char >= 192 && char <= 255) ||
-            char === 10 || char === 13) {
-            text += String.fromCharCode(char);
-        } else {
-            text += ' ';
-        }
+// PRIMA: leggeva i byte grezzi del PDF (in gran parte stream binari
+// compressi FlateDecode) filtrando per range ASCII/Latin-1, producendo
+// testo illeggibile sulla maggior parte dei PDF reali e comunque
+// corrompendo le lettere accentate italiane (à, è, ì, ò, ù) spezzandole
+// a metà. Ora usa PDF.js (parsing reale dei content stream).
+async function extractTextFromPDF(arrayBuffer) {
+    if (typeof pdfjsLib === 'undefined') {
+        throw new Error('Libreria PDF.js non caricata (controlla la connessione o un blocco ad-blocker sullo script CDN).');
     }
-    
-    text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
-    text = text.replace(/\s+/g, ' ');
-    text = text.replace(/(.)\1{4,}/g, '$1$1$1');
-    
-    return text.trim();
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const pageText = content.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n';
+    }
+    return fullText.trim();
+}
+
+// Estrazione testo da .docx (formato Word moderno, XML). Il vecchio .doc
+// binario (Word 97-2003) NON è supportato: nessuna libreria browser-side
+// affidabile lo gestisce senza un backend dedicato.
+async function extractTextFromDocx(arrayBuffer) {
+    if (typeof mammoth === 'undefined') {
+        throw new Error('Libreria mammoth.js non caricata (controlla la connessione o un blocco ad-blocker sullo script CDN).');
+    }
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value.trim();
 }
 
 // ============================================
@@ -1449,22 +1461,54 @@ ${coverLetter}
     });
 }
 
-function sendApplicationEmail(recipientEmail, company, role, coverLetter) {
+// I link mailto: hanno un limite di lunghezza non standardizzato (varia per
+// browser/OS/client di posta, tipicamente tra ~2000 e ~8000 caratteri
+// nell'URL completo); oltre quella soglia vengono troncati o ignorati
+// SILENZIOSAMENTE (nessun errore JS: sembra funzionare ma il corpo arriva
+// vuoto o tagliato a metà frase). Una cover letter di 250-300 parole +
+// subject encoding supera facilmente 1800-2000 caratteri. Soglia
+// conservativa: sotto quella si tenta mailto, sopra si copia negli
+// appunti e si apre Gmail vuoto, evitando invii silenziosamente corrotti.
+const MAILTO_SAFE_LENGTH = 1800;
+
+async function sendApplicationEmail(recipientEmail, company, role, coverLetter) {
     const subject = `Candidatura per ${role} - ${martinoProfile.name}`;
-    const body = coverLetter;
-    
-    const mailtoLink = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
-    const popup = window.open(mailtoLink, '_blank');
-    
+    const mailtoLink = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(coverLetter)}`;
+
+    if (mailtoLink.length <= MAILTO_SAFE_LENGTH) {
+        const popup = window.open(mailtoLink, '_blank');
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+            return {
+                success: false,
+                error: 'Popup bloccato dal browser. Consenti i popup per questo sito e riprova.'
+            };
+        }
+        return { success: true, method: 'mailto' };
+    }
+
+    // Fallback: la cover letter è troppo lunga per un mailto: affidabile.
+    // Copiamo il testo negli appunti e apriamo Gmail con solo subject/destinatario,
+    // così l'utente incolla lui stesso il corpo invece di rischiare un invio troncato.
+    try {
+        await navigator.clipboard.writeText(coverLetter);
+    } catch (clipboardError) {
+        console.warn('⚠️ Clipboard write failed:', clipboardError);
+        return {
+            success: false,
+            error: 'La cover letter è troppo lunga per un link email diretto e la copia automatica negli appunti non è riuscita. Copiala manualmente dal campo qui sopra.'
+        };
+    }
+
+    const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipientEmail)}&su=${encodeURIComponent(subject)}`;
+    const popup = window.open(gmailComposeUrl, '_blank');
+
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
         return {
             success: false,
-            error: 'Popup blocked. Please allow popups for this site and try again.'
+            error: 'Cover letter copiata negli appunti, ma il popup di Gmail è stato bloccato. Consenti i popup e incolla il testo manualmente.'
         };
     }
-    
-    return { success: true };
+    return { success: true, method: 'clipboard_fallback' };
 }
 
 // ============================================
@@ -1486,7 +1530,7 @@ function switchTab(tabName) {
         activeButton.classList.add('active');
     }
     
-    const activeContent = document.getElementById(tabName);
+    const activeContent = document.getElementById('tab-' + tabName);
     if (activeContent) {
         activeContent.classList.add('active');
     }
@@ -1514,17 +1558,25 @@ async function generateDocumentsMartino() {
     setTimeout(async () => {
         try {
             const industry = detectIndustry(jd);
-            
             const keywords = await extractKeywordsAdvanced(jd, 15);
-            
             const reqs = extractRequirements(jd);
-            
-            // Try AI-generated cover letter first
-            const aiCoverLetter = await generateCoverLetterWithAI(company, role, jd, martinoProfile);
-            
+            const competitiveAnalysis = generateCompetitiveAnalysis(jd, martinoProfile);
+
+            // Le 4 chiamate AI sono indipendenti tra loro (nessuna usa l'output
+            // di un'altra) -> eseguite in parallelo invece che in sequenza.
+            // Prima erano 1 sequenziale + 2 parallele + 1 sequenziale: con
+            // 4 round-trip a Claude da qualche secondo l'uno, la differenza
+            // e' facilmente 3-4x sul tempo di attesa totale.
+            const [aiCoverLetter, aiAboutMe, aiCVSuggestions, aiGapAnalysis] = await Promise.all([
+                generateCoverLetterWithAI(company, role, jd, martinoProfile),
+                generateAboutMeWithAI(jd, martinoProfile),
+                generateCVSuggestionsWithAI(jd, martinoProfile, reqs),
+                generateGapAnalysisWithAI(jd, martinoProfile, competitiveAnalysis)
+            ]);
+
             // Generate template variants as fallback
             const coverLetterVariants = generateCoverLetterVariantsBilingual(company, role, jd, martinoProfile);
-            
+
             // Use AI if available, otherwise use standard template
             if (aiCoverLetter) {
                 coverLetterVariants.ai_generated_it = aiCoverLetter;
@@ -1532,19 +1584,13 @@ async function generateDocumentsMartino() {
             } else {
                 console.log('⚠️ Using template-based cover letter (AI fallback)');
             }
-            
-            // Generate About Me with AI (parallel with CV suggestions)
-            const [aiAboutMe, aiCVSuggestions] = await Promise.all([
-                generateAboutMeWithAI(jd, martinoProfile),
-                generateCVSuggestionsWithAI(jd, martinoProfile, reqs)
-            ]);
-            
+
             // Use AI About Me or fallback to local
             const aboutMe = aiAboutMe || generateCVAboutSectionMartino(jd, martinoProfile);
-            
+
             // Generate local suggestions as base
             const detailedSuggestions = generateDetailedCVSuggestions(jd, reqs, martinoProfile.coreSkills, industry, martinoProfile);
-            
+
             // Override with AI suggestions if available
             if (aiCVSuggestions && aiCVSuggestions.length > 0) {
                 detailedSuggestions.workExperienceBullets = aiCVSuggestions;
@@ -1552,12 +1598,7 @@ async function generateDocumentsMartino() {
             } else {
                 console.log('⚠️ Using template-based CV suggestions (AI fallback)');
             }
-            
-            const competitiveAnalysis = generateCompetitiveAnalysis(jd, martinoProfile);
-            
-            // Generate Gap Analysis with AI
-            const aiGapAnalysis = await generateGapAnalysisWithAI(jd, martinoProfile, competitiveAnalysis);
-            
+
             // Override local gap analysis if AI succeeded
             if (aiGapAnalysis && aiGapAnalysis.length > 0) {
                 detailedSuggestions.gapAnalysis = aiGapAnalysis;
@@ -1578,7 +1619,17 @@ async function generateDocumentsMartino() {
             const atsScore = calculateATSScore(cvText, keywords);
             
             const detectedEmail = extractEmailFromJD(jd);
-            
+
+            // Passaggio 3 (sempre attivo): quale dei 20 CV preimpostati usare.
+            // Deterministico, non dipende dalle chiamate AI sopra: se quelle
+            // falliscono/vanno in fallback, questa raccomandazione c'e' comunque.
+            let cvRecommendation = null;
+            try {
+                cvRecommendation = await recommendCV(jd);
+            } catch (cvRecError) {
+                console.error('❌ CV recommendation error:', cvRecError);
+            }
+
             const results = {
                 company,
                 role,
@@ -1590,7 +1641,8 @@ async function generateDocumentsMartino() {
                 detailedSuggestions,
                 competitiveAnalysis,
                 atsScore,
-                detectedEmail
+                detectedEmail,
+                cvRecommendation
             };
             
             const analysisId = StorageManager.saveAnalysis(company, role, results, 'martino');
@@ -1604,8 +1656,254 @@ async function generateDocumentsMartino() {
             loadingDiv.style.display = 'none';
             alert('Error generating documents. Check console for details.');
         }
-    }, 60000);
+    }, 50);
 }
+
+// ============================================
+// CV RECOMMENDATION ENGINE (Passaggio 3 - sempre attivo)
+// ============================================
+// Sceglie quale dei 20 CV preimpostati (5 orientamenti x 2 lingue x
+// con/senza portfolio, in cv-templates/manifest.json) usare per una data
+// job description. Interamente deterministico (regex, nessuna chiamata di
+// rete) cosi' funziona SEMPRE, anche se le funzioni AI del tool sono giu' o
+// lente: la raccomandazione non deve mai dipendere da Claude per esistere.
+//
+// Il "Passaggio 1" (generazione di una versione su misura via AI, vedi
+// generateTailoredCV piu' sotto) e' un'aggiunta OPZIONALE che entra in
+// gioco solo quando questa classificazione ha bassa confidenza: cioe' solo
+// quando il sistema stesso valuta che nessuno dei preimpostati calzi bene,
+// non come passo automatico ad ogni generazione.
+
+let _cvManifestCache = null;
+
+async function loadCVManifest() {
+    if (_cvManifestCache) return _cvManifestCache;
+    const res = await fetch('cv-templates/manifest.json');
+    if (!res.ok) throw new Error(`Impossibile caricare cv-templates/manifest.json (HTTP ${res.status})`);
+    _cvManifestCache = await res.json();
+    return _cvManifestCache;
+}
+
+// Rilevamento lingua JD: conteggio di parole funzionali molto comuni e
+// quasi mai ambigue tra le due lingue. Euristica, non un vero language
+// detector - ma su annunci di lavoro IT/EN è affidabile: 15+ parole di
+// servizio danno un segnale forte anche su testi brevi.
+const LANG_MARKERS_IT = ['il', 'lo', 'la', 'di', 'per', 'con', 'che', 'sono', 'del', 'della',
+    'nella', 'azienda', 'esperienza', 'competenze', 'requisiti', 'offriamo', 'candidatura', 'sede'];
+const LANG_MARKERS_EN = ['the', 'and', 'of', 'to', 'for', 'with', 'you', 'we', 'are', 'this',
+    'company', 'experience', 'skills', 'requirements', 'role', 'team'];
+
+function detectJDLanguage(jdText) {
+    const lower = jdText.toLowerCase();
+    const countMarkers = (markers) => markers.reduce((sum, w) => {
+        const matches = lower.match(new RegExp(`\\b${w}\\b`, 'g'));
+        return sum + (matches ? matches.length : 0);
+    }, 0);
+    const itScore = countMarkers(LANG_MARKERS_IT);
+    const enScore = countMarkers(LANG_MARKERS_EN);
+    // Parità o testo troppo corto per essere affidabile -> default italiano
+    // (la stragrande maggioranza degli annunci che Martino incolla e' in IT).
+    const language = enScore > itScore ? 'en' : 'it';
+    return { language, itScore, enScore };
+}
+
+// 5 orientamenti = le 5 famiglie di CV disponibili. I pattern sono presi
+// dal vocabolario effettivo usato nei CV stessi (aree di competenza) piu'
+// termini equivalenti comuni negli annunci, in entrambe le lingue.
+const ORIENTATION_PATTERNS = {
+    account: [
+        /\baccount manag(?:er|ement)\b/i, /\bclient relationship\b/i, /\bkey account\b/i,
+        /\bgestione (?:clienti|account)\b/i, /\bnegoziazion[ei]\b/i, /\btrattativ[ae]\b/i,
+        /\bcustomer relationship\b/i, /\bnew business\b/i
+    ],
+    'digital-marketing': [
+        /\bdigital marketing\b/i, /\bseo\b/i, /\bsem\b/i, /\bmedia planning\b/i,
+        /\bgoogle ads\b/i, /\bmeta ads\b/i, /\bpaid media\b/i, /\bperformance marketing\b/i,
+        /\bcampaign management\b/i, /\bgestione campagne\b/i, /\bmedia plan\b/i
+    ],
+    'digital-transformation': [
+        /\bdigital transformation\b/i, /\btrasformazione digitale\b/i, /\bchange management\b/i,
+        /\bprocess automation\b/i, /\bautomazione dei processi\b/i, /\binnovazione tecnologica\b/i,
+        /\bdigitalizzazione\b/i, /\bdigital innovation\b/i
+    ],
+    comunicazione: [
+        /\bcomunicazione\b/i, /\bufficio stampa\b/i, /\bpublic relations\b/i, /\bPR\b/,
+        /\bcontent strategy\b/i, /\bcopywriting\b/i, /\bsocial media manager\b/i,
+        /\bpress release[s]?\b/i, /\bcomunicat[oi] stampa\b/i, /\beditorial[ei]\b/i
+    ]
+};
+
+function detectCVOrientation(jdText) {
+    const scores = {};
+    for (const [orientation, patterns] of Object.entries(ORIENTATION_PATTERNS)) {
+        scores[orientation] = patterns.reduce((sum, p) => sum + (p.test(jdText) ? 1 : 0), 0);
+    }
+    const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const [topOrientation, topScore] = entries[0];
+    const secondScore = entries[1] ? entries[1][1] : 0;
+
+    // Fallback esplicito su "generico": nessun segnale chiaro, o due aree
+    // pari merito (annuncio ibrido che non favorisce un profilo specifico).
+    // Il CV generico/ATS e' costruito apposta per coprire tutte le aree,
+    // quindi e' la scelta piu' sicura quando la classificazione e' incerta.
+    const ambiguous = topScore === 0 || (topScore - secondScore) <= 0;
+    const orientation = ambiguous ? 'generico' : topOrientation;
+
+    return { orientation, scores, confident: !ambiguous };
+}
+
+// Rileva se l'annuncio richiede/menziona esplicitamente competenze IA ->
+// decide se includere la sezione Portfolio (che mostra progetti costruiti
+// guidando modelli IA end-to-end).
+//
+// Due pattern separati, non uno solo case-insensitive:
+// - le frasi multi-parola sono case-insensitive (sicure, nessuna collisione)
+// - gli acronimi corti (AI, ML, LLM, GPT) sono case-SENSITIVE, maiuscolo
+//   obbligatorio. Motivo verificato empiricamente: "ai" minuscolo e' la
+//   preposizione articolata italiana ("dedicato ai clienti") ed e'
+//   comunissima in qualunque annuncio in italiano - un check case-insensitive
+//   segnalava "richiede IA" su testi che parlano solo "ai clienti/fornitori".
+//   Negli annunci reali l'acronimo IA/AI viene quasi sempre scritto in
+//   maiuscolo; richiederlo maiuscolo elimina il falso positivo senza perdere
+//   i casi veri.
+const AI_REQUIREMENT_PHRASES =
+    /\b(intelligenza artificiale|artificial intelligence|machine learning|prompt engineering|generative ai|ia generativa|chatbot|large language model)\b/gi;
+const AI_REQUIREMENT_ACRONYMS = /\b(AI|ML|LLM|GPT)\b/g;
+
+function detectAIRequirement(jdText) {
+    const phraseMatches = jdText.match(AI_REQUIREMENT_PHRASES) || [];
+    const acronymMatches = jdText.match(AI_REQUIREMENT_ACRONYMS) || [];
+    const uniqueTerms = [...new Set([...phraseMatches, ...acronymMatches].map(m => m.trim()))];
+    return { required: uniqueTerms.length > 0, matchedTerms: uniqueTerms };
+}
+
+async function recommendCV(jdText) {
+    const manifest = await loadCVManifest();
+    const { language } = detectJDLanguage(jdText);
+    const { orientation, scores, confident } = detectCVOrientation(jdText);
+    const { required: aiRequired, matchedTerms } = detectAIRequirement(jdText);
+
+    const entry = manifest.find(e =>
+        e.orientation === orientation && e.language === language && e.portfolio === aiRequired
+    );
+
+    // Non dovrebbe mai succedere con una matrice 5x2x2 completa, ma se un
+    // file dovesse mancare in futuro non blocchiamo la raccomandazione:
+    // degradiamo al generico nella stessa lingua/portfolio.
+    const finalEntry = entry || manifest.find(e =>
+        e.orientation === 'generico' && e.language === language && e.portfolio === aiRequired
+    ) || manifest[0];
+
+    return {
+        entry: finalEntry,
+        language,
+        orientation,
+        orientationScores: scores,
+        orientationConfident: confident,
+        aiRequired,
+        aiMatchedTerms: matchedTerms,
+        // Bassa confidenza = candidato per il Passaggio 1 (versione su
+        // misura via AI): l'orientamento e' caduto nel fallback generico,
+        // quindi nessuno dei preimpostati e' un fit dichiaratamente forte.
+        lowConfidence: !confident
+    };
+}
+
+// ============================================
+// PASSAGGIO 1 - Versione CV su misura via AI (solo quando serve)
+// ============================================
+// Chiamata SOLO quando recommendCV() segnala lowConfidence, o se l'utente
+// la richiede esplicitamente col bottone. Riscrive esclusivamente il
+// paragrafo "Profilo Professionale" del preimpostato piu' vicino, cucito
+// sulla JD specifica, e restituisce un .docx pronto da scaricare - non
+// genera un documento da zero: parte sempre da uno dei 20 file (stessa
+// formattazione, stesso layout), cambia solo quel paragrafo.
+async function generateTailoredCV(templateId, jdText, company, role) {
+    const response = await fetch('/.netlify/functions/generate-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, jdText, company, role })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Generazione CV su misura fallita (HTTP ${response.status}). ${errText}`);
+    }
+
+    const data = await response.json();
+    if (!data.docxBase64) {
+        throw new Error(data.error || 'Risposta della function priva del file generato.');
+    }
+
+    const byteChars = atob(data.docxBase64);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([new Uint8Array(byteNumbers)], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = data.filename || `CV_Martino_Cicerani_su_misura.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function buildCVRecommendationHTML(rec) {
+    const langLabel = rec.language === 'it' ? 'Italiano' : 'English';
+    const pfLabel = rec.aiRequired ? 'CON portfolio progetti IA' : 'SENZA portfolio';
+    const pfReason = rec.aiRequired
+        ? `l'annuncio menziona: ${rec.aiMatchedTerms.slice(0, 4).join(', ')}`
+        : 'nessun requisito IA esplicito rilevato nell\'annuncio';
+    const confidenceLabel = rec.orientationConfident
+        ? '<span style="color:#2e7d32;font-weight:600;">alta</span>'
+        : '<span style="color:#e65100;font-weight:600;">bassa (nessuna area dominante)</span>';
+
+    const tailoredButton = rec.lowConfidence ? `
+        <button onclick="handleGenerateTailoredCV('${rec.entry.id}')" id="tailoredCvBtn"
+            style="margin-top:10px;padding:10px 16px;background:#fff;color:#667eea;border:2px solid #667eea;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">
+            ✨ Genera versione su misura con AI (consigliato: nessuna area calza bene)
+        </button>` : '';
+
+    return `
+        <div class="card">
+            <h3 style="color:#667eea;">📎 CV CONSIGLIATO</h3>
+            <div style="background:#f0f4ff;padding:16px;border-radius:8px;margin:12px 0;">
+                <p style="margin:0 0 8px 0;font-size:16px;"><strong>${rec.entry.filename}</strong></p>
+                <p style="margin:0 0 4px 0;font-size:13px;color:#555;">Lingua rilevata: <strong>${langLabel}</strong> · Area: <strong>${rec.orientation}</strong> (confidenza: ${confidenceLabel}) · ${pfLabel}</p>
+                <p style="margin:0;font-size:12px;color:#777;">Portfolio: ${pfReason}</p>
+            </div>
+            <a href="cv-templates/${rec.entry.filename}" download
+                style="display:inline-block;padding:10px 20px;background:#28a745;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">
+                ⬇️ Scarica ${rec.entry.filename}
+            </a>
+            ${tailoredButton}
+            <div id="tailoredCvStatus" style="margin-top:8px;font-size:12px;"></div>
+        </div>`;
+}
+
+async function handleGenerateTailoredCV(templateId) {
+    const btn = document.getElementById('tailoredCvBtn');
+    const status = document.getElementById('tailoredCvStatus');
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = '⏳ Generazione in corso (puo\' richiedere fino a 2-3 minuti)...';
+    try {
+        const jd = document.getElementById('jdText').value.trim();
+        const company = document.getElementById('companyName').value.trim();
+        const role = document.getElementById('roleName').value.trim();
+        await generateTailoredCV(templateId, jd, company, role);
+        if (status) status.textContent = '✅ Scaricato.';
+    } catch (error) {
+        console.error('❌ Tailored CV error:', error);
+        if (status) status.textContent = `❌ ${error.message}`;
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // Part 5: Display Results (with Gap Analysis + Keywords), History, Generic Mode, File Handlers
 
 // ============================================
@@ -1628,7 +1926,9 @@ function displayResultsMartino(results, analysisId) {
             <h2 style="margin-top: 0; color: white;">✅ Analysis Complete: ${results.company}</h2>
             <p style="font-size: 18px; margin: 0;">${results.role}</p>
         </div>
-        
+
+        ${results.cvRecommendation ? buildCVRecommendationHTML(results.cvRecommendation) : ''}
+
         <div class="card">
             <h3 style="color: #667eea;">📊 COMPETITIVE ANALYSIS</h3>
             
@@ -2020,32 +2320,87 @@ async function generateDocumentsGeneric() {
         
         resultsDiv.innerHTML = resultsHTML;
         loadingDiv.style.display = 'none';
-    }, 60000);
+    }, 50);
 }
 
-function handleCVUpload(event) {
+// NOTA: prima questa funzione non attivava mai il bottone #analyzeBtn
+// (che parte con disabled nell'HTML) né riempiva #uploadedFileInfo/#cvPreview:
+// la tab "Analizza CV Generico" era di fatto inutilizzabile, a prescindere
+// dal parsing del file. Ora aggiorna l'UI e mostra un'anteprima del testo
+// estratto, cosi' l'utente vede subito se l'estrazione ha funzionato bene.
+async function handleCVUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
-    uploadedFileName = file.name;
-    
-    const reader = new FileReader();
-    
-    if (file.name.endsWith('.pdf')) {
-        reader.onload = (e) => {
-            uploadedCVText = extractTextFromPDF(e.target.result);
-            alert(`PDF loaded: ${uploadedFileName}`);
-        };
-        reader.readAsArrayBuffer(file);
-    } else if (file.name.endsWith('.txt')) {
-        reader.onload = (e) => {
-            uploadedCVText = e.target.result;
-            alert(`Text file loaded: ${uploadedFileName}`);
-        };
-        reader.readAsText(file);
-    } else {
-        alert('Please upload a PDF or TXT file');
+
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        alert('File troppo grande (max 5MB)');
+        event.target.value = '';
+        return;
     }
+
+    uploadedFileName = file.name;
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const infoDiv = document.getElementById('uploadedFileInfo');
+    const previewDiv = document.getElementById('cvPreview');
+    if (analyzeBtn) analyzeBtn.disabled = true;
+    if (infoDiv) infoDiv.innerHTML = `<div class="uploaded-file">⏳ Estrazione testo in corso da ${uploadedFileName}...</div>`;
+    if (previewDiv) previewDiv.innerHTML = '';
+
+    try {
+        const lowerName = file.name.toLowerCase();
+        if (lowerName.endsWith('.pdf')) {
+            const arrayBuffer = await file.arrayBuffer();
+            uploadedCVText = await extractTextFromPDF(arrayBuffer);
+        } else if (lowerName.endsWith('.docx')) {
+            const arrayBuffer = await file.arrayBuffer();
+            uploadedCVText = await extractTextFromDocx(arrayBuffer);
+        } else if (lowerName.endsWith('.txt')) {
+            uploadedCVText = await file.text();
+        } else {
+            throw new Error('Formato non supportato. Carica un PDF, DOCX o TXT.');
+        }
+
+        if (!uploadedCVText || uploadedCVText.length < 20) {
+            throw new Error('Testo estratto vuoto o troppo corto: il file potrebbe essere una scansione immagine (senza testo selezionabile) o protetto.');
+        }
+
+        if (infoDiv) {
+            infoDiv.innerHTML = `
+                <div class="uploaded-file">
+                    ✅ ${uploadedFileName} (${Math.round(file.size / 1024)} KB, ${uploadedCVText.length} caratteri estratti)
+                    <button class="remove-btn" onclick="clearUploadedCV()">Rimuovi</button>
+                </div>`;
+        }
+        if (previewDiv) {
+            const snippet = uploadedCVText.slice(0, 1200);
+            previewDiv.innerHTML = `
+                <div class="cv-preview">
+                    <h3>Anteprima testo estratto (controlla che sia leggibile):</h3>
+                    <pre>${snippet.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}${uploadedCVText.length > 1200 ? '\n…' : ''}</pre>
+                </div>`;
+        }
+        if (analyzeBtn) analyzeBtn.disabled = false;
+    } catch (error) {
+        console.error('❌ CV upload/extraction error:', error);
+        uploadedCVText = '';
+        if (infoDiv) infoDiv.innerHTML = `<div class="uploaded-file" style="background:#fdecea;">❌ Errore: ${error.message}</div>`;
+        if (analyzeBtn) analyzeBtn.disabled = true;
+        event.target.value = '';
+    }
+}
+
+function clearUploadedCV() {
+    uploadedCVText = '';
+    uploadedFileName = '';
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const infoDiv = document.getElementById('uploadedFileInfo');
+    const previewDiv = document.getElementById('cvPreview');
+    const fileInput = document.getElementById('cvFile');
+    if (analyzeBtn) analyzeBtn.disabled = true;
+    if (infoDiv) infoDiv.innerHTML = '';
+    if (previewDiv) previewDiv.innerHTML = '';
+    if (fileInput) fileInput.value = '';
 }
 
 // ============================================
@@ -2081,32 +2436,38 @@ function notifyExtensionJobApplied(analysisId, jobId) {
 
 // Modify approveAndSendEmail function (FIND THIS IN APP.JS)
 // ADD this line AFTER StorageManager.markAsSent():
-function approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis) {
-    const result = sendApplicationEmail(recipientEmail, analysis.company, analysis.role, coverLetter);
-    
+async function approveAndSendEmail(analysisId, recipientEmail, coverLetter, analysis) {
+    const result = await sendApplicationEmail(recipientEmail, analysis.company, analysis.role, coverLetter);
+
     if (result.success) {
         StorageManager.markAsSent(analysisId, { recipientEmail });
-        
+
         // NEW: Notify extension if job came from there
         if (jobIdFromExtension) {
             notifyExtensionJobApplied(analysisId, jobIdFromExtension);
         }
-        
-        showSuccessModal(analysis.company);
+
+        showSuccessModal(analysis.company, result.method);
     } else {
         alert(result.error);
     }
 }
 
 // Add feedback reminder to success modal (MODIFY showSuccessModal)
-function showSuccessModal(company) {
+function showSuccessModal(company, method) {
+    const isFallback = method === 'clipboard_fallback';
     const modal = `
         <div id="successModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; display: flex; align-items: center; justify-content: center;">
             <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
-                <h2 style="color: #4CAF50; margin-top: 0;">Email Opened in Gmail!</h2>
+                <h2 style="color: #4CAF50; margin-top: 0;">${isFallback ? 'Cover letter copiata + Gmail aperto' : 'Email Opened in Gmail!'}</h2>
+                ${isFallback ? `
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin: 15px 0; text-align: left; font-size: 14px;">
+                    ⚠️ La cover letter era troppo lunga per un link email diretto (rischio di corpo troncato). È stata <strong>copiata negli appunti</strong>: incollala tu nel corpo dell'email appena aperta (Ctrl/Cmd+V).
+                </div>` : ''}
                 <p style="margin: 20px 0;">Remember to:</p>
                 <ol style="text-align: left; margin: 20px 0;">
+                    ${isFallback ? '<li style="margin-bottom: 10px;">📋 <strong>Incolla la cover letter</strong> nel corpo dell\'email</li>' : ''}
                     <li style="margin-bottom: 10px;">📎 <strong>Attach your CV PDF/DOCX</strong></li>
                     <li style="margin-bottom: 10px;">📂 Attach portfolio (if applicable)</li>
                     <li style="margin-bottom: 10px;">✉️ Click Send in Gmail</li>
