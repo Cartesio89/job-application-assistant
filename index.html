@@ -434,6 +434,10 @@
             margin-bottom: 5px;
         }
     </style>
+    <!-- Estrazione testo reale da PDF/DOCX (sostituisce il vecchio byte-scanner
+         che corrompeva accenti e falliva sulla maggior parte dei PDF reali) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -513,10 +517,10 @@
                     <h2>📤 Upload CV</h2>
                     
                     <div class="file-upload" id="fileUpload" onclick="document.getElementById('cvFile').click()">
-                        <input type="file" id="cvFile" accept=".pdf,.doc,.docx" onchange="handleFileUpload(event)">
+                        <input type="file" id="cvFile" accept=".pdf,.docx,.txt" onchange="handleFileUpload(event)">
                         <div class="file-upload-icon">📄</div>
                         <p style="color: #667eea; font-weight: 600; margin-bottom: 5px;">Clicca o trascina per caricare CV</p>
-                        <p style="font-size: 13px; color: #666;">Supporta: PDF, DOC, DOCX (max 5MB)</p>
+                        <p style="font-size: 13px; color: #666;">Supporta: PDF, DOCX, TXT (max 5MB). .doc (Word 97-2003) non è supportato: salva come .docx.</p>
                     </div>
                     
                     <div id="uploadedFileInfo"></div>
