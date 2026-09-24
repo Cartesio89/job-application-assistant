@@ -2683,8 +2683,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         localStorage.removeItem('ext_pending_description');
                         localStorage.removeItem('ext_pending_ts');
                         clearInterval(pollDesc);
+                        const b = document.getElementById('ext-queue-banner');
+                        if (b) b.remove();
                     } else if (pollCount >= 30) {
                         clearInterval(pollDesc); // stop dopo 15s
+                        // Prima il banner restava a video per sempre (bug: nessun
+                        // ramo lo rimuoveva se non arrivava mai una descrizione,
+                        // es. estensione che non e' riuscita a estrarla dalla
+                        // pagina). Ora lo sostituiamo con un avviso breve e lo
+                        // togliamo comunque dopo pochi secondi.
+                        const b = document.getElementById('ext-queue-banner');
+                        if (b) {
+                            b.innerHTML = '⚠️ Descrizione non ricevuta dall\'estensione: incollala qui sotto a mano.';
+                            setTimeout(() => b.remove(), 4000);
+                        }
                     }
                 }, 500);
             }
