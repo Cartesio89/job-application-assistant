@@ -1,0 +1,202 @@
+[
+  {
+    "id": "account-it-nopf",
+    "orientation": "account",
+    "language": "it",
+    "portfolio": false,
+    "filename": "account-it-nopf.docx",
+    "tagline": "Account Manager / Digital Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in account management, trattative e negoziazione con clienti locali e internazionali, coordinamento di team e gestione budget. Esperienza maturata su brand automotive, fashion, medicale e gaming, con competenze in media planning, reportistica delle performance e comunicazione a supporto della relazione con il cliente."
+  },
+  {
+    "id": "account-it-pf",
+    "orientation": "account",
+    "language": "it",
+    "portfolio": true,
+    "filename": "account-it-pf.docx",
+    "tagline": "Account Manager / Digital Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in account management, trattative e negoziazione con clienti locali e internazionali, coordinamento di team e gestione budget. Esperienza maturata su brand automotive, fashion, medicale e gaming, con competenze in media planning, reportistica delle performance e comunicazione a supporto della relazione con il cliente."
+  },
+  {
+    "id": "account-en-nopf",
+    "orientation": "account",
+    "language": "en",
+    "portfolio": false,
+    "filename": "account-en-nopf.docx",
+    "tagline": "Account Manager / Digital Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in account management, negotiation with local and international clients, team coordination and budget management. Experience gained with automotive, fashion, healthcare and gaming brands, with skills in media planning, performance reporting and communication in support of client relationships."
+  },
+  {
+    "id": "account-en-pf",
+    "orientation": "account",
+    "language": "en",
+    "portfolio": true,
+    "filename": "account-en-pf.docx",
+    "tagline": "Account Manager / Digital Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in account management, negotiation with local and international clients, team coordination and budget management. Experience gained with automotive, fashion, healthcare and gaming brands, with skills in media planning, performance reporting and communication in support of client relationships."
+  },
+  {
+    "id": "digital-marketing-it-nopf",
+    "orientation": "digital-marketing",
+    "language": "it",
+    "portfolio": false,
+    "filename": "digital-marketing-it-nopf.docx",
+    "tagline": "Digital Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in digital marketing, media planning, SEO e social media, gestione budget e ottimizzazione delle campagne. Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze di reportistica delle performance e strumenti di intelligenza artificiale applicati al marketing digitale (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "digital-marketing-it-pf",
+    "orientation": "digital-marketing",
+    "language": "it",
+    "portfolio": true,
+    "filename": "digital-marketing-it-pf.docx",
+    "tagline": "Digital Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in digital marketing, media planning, SEO e social media, gestione budget e ottimizzazione delle campagne. Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze di reportistica delle performance e strumenti di intelligenza artificiale applicati al marketing digitale (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "digital-marketing-en-nopf",
+    "orientation": "digital-marketing",
+    "language": "en",
+    "portfolio": false,
+    "filename": "digital-marketing-en-nopf.docx",
+    "tagline": "Digital Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in digital marketing, media planning, SEO and social media, budget management and campaign optimization. Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in performance reporting and AI tools applied to digital marketing (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "digital-marketing-en-pf",
+    "orientation": "digital-marketing",
+    "language": "en",
+    "portfolio": true,
+    "filename": "digital-marketing-en-pf.docx",
+    "tagline": "Digital Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in digital marketing, media planning, SEO and social media, budget management and campaign optimization. Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in performance reporting and AI tools applied to digital marketing (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "digital-transformation-it-nopf",
+    "orientation": "digital-transformation",
+    "language": "it",
+    "portfolio": false,
+    "filename": "digital-transformation-it-nopf.docx",
+    "tagline": "Digital Transformation Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza nell'applicazione di strumenti di intelligenza artificiale al digital marketing e alla gestione dei processi (Midjourney, Claude, Prompt Engineering, NotebookLM). Esperienza maturata in strategie digitali, project management, coordinamento di team tecnici e costruzione/gestione di piattaforme web, su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming."
+  },
+  {
+    "id": "digital-transformation-it-pf",
+    "orientation": "digital-transformation",
+    "language": "it",
+    "portfolio": true,
+    "filename": "digital-transformation-it-pf.docx",
+    "tagline": "Digital Transformation Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza nell'applicazione di strumenti di intelligenza artificiale al digital marketing e alla gestione dei processi (Midjourney, Claude, Prompt Engineering, NotebookLM). Esperienza maturata in strategie digitali, project management, coordinamento di team tecnici e costruzione/gestione di piattaforme web, su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming."
+  },
+  {
+    "id": "digital-transformation-en-nopf",
+    "orientation": "digital-transformation",
+    "language": "en",
+    "portfolio": false,
+    "filename": "digital-transformation-en-nopf.docx",
+    "tagline": "Digital Transformation Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience applying artificial intelligence tools to digital marketing and process management (Midjourney, Claude, Prompt Engineering, NotebookLM). Experience gained in digital strategy, project management, coordination of technical teams and web platform development/management, with local and international clients in the automotive, fashion, healthcare and gaming sectors."
+  },
+  {
+    "id": "digital-transformation-en-pf",
+    "orientation": "digital-transformation",
+    "language": "en",
+    "portfolio": true,
+    "filename": "digital-transformation-en-pf.docx",
+    "tagline": "Digital Transformation Consultant",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience applying artificial intelligence tools to digital marketing and process management (Midjourney, Claude, Prompt Engineering, NotebookLM). Experience gained in digital strategy, project management, coordination of technical teams and web platform development/management, with local and international clients in the automotive, fashion, healthcare and gaming sectors."
+  },
+  {
+    "id": "comunicazione-it-nopf",
+    "orientation": "comunicazione",
+    "language": "it",
+    "portfolio": false,
+    "filename": "comunicazione-it-nopf.docx",
+    "tagline": "Communication Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in comunicazione esterna (comunicati stampa, articoli editoriali, social media) e comunicazione interna (coordinamento di team tecnici e di lavoro). Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze in digital marketing, media planning e gestione di piattaforme web e social."
+  },
+  {
+    "id": "comunicazione-it-pf",
+    "orientation": "comunicazione",
+    "language": "it",
+    "portfolio": true,
+    "filename": "comunicazione-it-pf.docx",
+    "tagline": "Communication Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in comunicazione esterna (comunicati stampa, articoli editoriali, social media) e comunicazione interna (coordinamento di team tecnici e di lavoro). Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze in digital marketing, media planning e gestione di piattaforme web e social."
+  },
+  {
+    "id": "comunicazione-en-nopf",
+    "orientation": "comunicazione",
+    "language": "en",
+    "portfolio": false,
+    "filename": "comunicazione-en-nopf.docx",
+    "tagline": "Communication Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in external communication (press releases, editorial articles, social media) and internal communication (coordination of technical and working teams). Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in digital marketing, media planning and management of web and social platforms."
+  },
+  {
+    "id": "comunicazione-en-pf",
+    "orientation": "comunicazione",
+    "language": "en",
+    "portfolio": true,
+    "filename": "comunicazione-en-pf.docx",
+    "tagline": "Communication Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in external communication (press releases, editorial articles, social media) and internal communication (coordination of technical and working teams). Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in digital marketing, media planning and management of web and social platforms."
+  },
+  {
+    "id": "generico-it-nopf",
+    "orientation": "generico",
+    "language": "it",
+    "portfolio": false,
+    "filename": "generico-it-nopf.docx",
+    "tagline": "Digital Consultant & Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in strategie di digital marketing, media planning, gestione budget e account, comunicazione esterna e interna e coordinamento di team. Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze in SEO, social media, reportistica delle performance e strumenti di intelligenza artificiale applicati alla trasformazione digitale (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "generico-it-pf",
+    "orientation": "generico",
+    "language": "it",
+    "portfolio": true,
+    "filename": "generico-it-pf.docx",
+    "tagline": "Digital Consultant & Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant con esperienza in strategie di digital marketing, media planning, gestione budget e account, comunicazione esterna e interna e coordinamento di team. Esperienza maturata su clienti locali e internazionali nei settori automotive, fashion, medicale e gaming, con competenze in SEO, social media, reportistica delle performance e strumenti di intelligenza artificiale applicati alla trasformazione digitale (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "generico-en-nopf",
+    "orientation": "generico",
+    "language": "en",
+    "portfolio": false,
+    "filename": "generico-en-nopf.docx",
+    "tagline": "Digital Consultant & Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in digital marketing strategy, media planning, budget and account management, external and internal communication, and team coordination. Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in SEO, social media, performance reporting and AI tools applied to digital transformation (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  },
+  {
+    "id": "generico-en-pf",
+    "orientation": "generico",
+    "language": "en",
+    "portfolio": true,
+    "filename": "generico-en-pf.docx",
+    "tagline": "Digital Consultant & Marketing Specialist",
+    "profileParagraphIndex": 4,
+    "profileParagraph": "Digital Consultant with experience in digital marketing strategy, media planning, budget and account management, external and internal communication, and team coordination. Experience gained with local and international clients in the automotive, fashion, healthcare and gaming sectors, with skills in SEO, social media, performance reporting and AI tools applied to digital transformation (Midjourney, Claude, Prompt Engineering, NotebookLM)."
+  }
+]
