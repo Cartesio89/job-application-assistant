@@ -1810,14 +1810,17 @@ async function recommendCV(jdText) {
 }
 
 // ============================================
-// PASSAGGIO 1 - Versione CV su misura via AI (solo quando serve)
+// PASSAGGIO 1 - Versione CV su misura via AI (sempre disponibile su richiesta)
 // ============================================
-// Chiamata SOLO quando recommendCV() segnala lowConfidence, o se l'utente
-// la richiede esplicitamente col bottone. Riscrive esclusivamente il
-// paragrafo "Profilo Professionale" del preimpostato piu' vicino, cucito
-// sulla JD specifica, e restituisce un .docx pronto da scaricare - non
-// genera un documento da zero: parte sempre da uno dei 20 file (stessa
-// formattazione, stesso layout), cambia solo quel paragrafo.
+// Il bottone in UI compare sempre (scelta esplicita dell'utente, non piu'
+// limitato ai casi di bassa confidenza): parte comunque sempre dal
+// preimpostato piu' vicino, mai da zero, e riscrive ESCLUSIVAMENTE il
+// paragrafo "Profilo Professionale", cucito sulla JD specifica, restituendo
+// un .docx pronto da scaricare - stessa formattazione, stesso layout, stessa
+// esperienza/skills/certificazioni del preimpostato, cambia solo quel
+// paragrafo. Il prompt (vedi generate-cv.js) vincola esplicitamente l'AI a
+// riprendere solo fatti gia' presenti nel paragrafo originale, mai a
+// inventare competenze o esperienze assenti dal CV reale.
 async function generateTailoredCV(templateId, jdText, company, role) {
     const response = await fetch('/.netlify/functions/generate-cv', {
         method: 'POST',
@@ -1862,11 +1865,18 @@ function buildCVRecommendationHTML(rec) {
         ? '<span style="color:#2e7d32;font-weight:600;">alta</span>'
         : '<span style="color:#e65100;font-weight:600;">bassa (nessuna area dominante)</span>';
 
-    const tailoredButton = rec.lowConfidence ? `
+    // Il bottone compare sempre (scelta esplicita dell'utente: vuole poterlo
+    // forzare anche quando il preimpostato gia' calza bene), ma l'etichetta
+    // segnala se e' consigliato o solo opzionale, cosi' resta chiaro quando
+    // il sistema stesso pensa serva davvero.
+    const tailoredLabel = rec.lowConfidence
+        ? '✨ Genera versione su misura con AI (consigliato: nessuna area calza bene)'
+        : '✨ Genera comunque una versione su misura con AI (opzionale: il preimpostato gia\' calza bene)';
+    const tailoredButton = `
         <button onclick="handleGenerateTailoredCV('${rec.entry.id}')" id="tailoredCvBtn"
             style="margin-top:10px;padding:10px 16px;background:#fff;color:#667eea;border:2px solid #667eea;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">
-            ✨ Genera versione su misura con AI (consigliato: nessuna area calza bene)
-        </button>` : '';
+            ${tailoredLabel}
+        </button>`;
 
     return `
         <div class="card">
