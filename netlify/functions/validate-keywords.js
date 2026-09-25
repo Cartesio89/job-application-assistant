@@ -33,6 +33,14 @@ async function callClaude(prompt, maxTokens) {
             body: JSON.stringify({
                 model: MODEL,
                 max_tokens: maxTokens,
+                // Aggiunto 2026-09-25: un test empirico ha mostrato un content
+                // block di tipo "thinking" nella risposta pur non avendo mai
+                // richiesto extended thinking in questa request. Ipotesi (non
+                // verificata direttamente contro la documentazione Anthropic
+                // in questa sessione, nessun accesso di rete diretto alle API):
+                // per questo modello/account il thinking potrebbe essere
+                // abilitato di default, e va disattivato esplicitamente.
+                thinking: { type: 'disabled' },
                 messages: [{ role: 'user', content: prompt }]
             })
         });
