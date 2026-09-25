@@ -858,34 +858,49 @@ TARGET POSITION:
 REQUIREMENTS:
 1. Write in ITALIAN language
 2. Professional corporate tone
-3. Length: 250-300 words
-4. Structure:
-   - Opening: Express interest and mention ${profile.yearsExp}+ years experience
-   - Body: Connect candidate's experience to specific JD requirements
-   - Highlight transferable skills even if industry different
-   - Mention concrete achievements with brands managed
-   - Reference AI skills as competitive advantage if relevant to role
-   - Closing: Express enthusiasm and availability
-5. Be SPECIFIC: Reference actual keywords from JD
+3. HARD LIMIT: 200-230 words MAXIMUM. Do not exceed 230 words under any
+   circumstance. Count as you write and wrap up before the limit.
+4. Structure (keep each part brief - this is a strict constraint, not a
+   suggestion, given the word limit above):
+   - Opening: Express interest and mention ${profile.yearsExp}+ years experience (1-2 sentences)
+   - Body: Connect candidate's experience to the 2-3 MOST relevant JD requirements only (2-3 sentences)
+   - One concrete achievement with a brand managed (1 sentence)
+   - Closing: Express enthusiasm and availability (1 sentence)
+5. Be SPECIFIC: Reference actual keywords from JD, but concisely
 6. Avoid generic phrases
-7. Show understanding of company's needs based on JD
-8. End with: "Cordiali saluti, ${profile.name}, ${profile.email} | ${profile.phone}"
+7. End with: "Cordiali saluti, ${profile.name}, ${profile.email} | ${profile.phone}"
 
-Generate ONLY the cover letter text, no additional commentary.`;
+Generate ONLY the cover letter text, no additional commentary. Stop writing
+as soon as you reach the closing signature - do not add anything after it.`;
 
-        // maxTokens abbassato da 800 a 550 il 2026-09-25: con 800 la
-        // generazione superava sistematicamente il timeout interno di 9s
-        // della function (confermato empiricamente: 10.3s reali, errore
-        // "Claude API timeout (>9s)"). generate-cv.js, che funziona in modo
-        // affidabile con lo stesso limite di 9s, chiede solo 400 token. 550
-        // resta abbondante per 250-300 parole di cover letter (~350-450
-        // token in italiano) con un margine di sicurezza.
+        // Fix del 2026-09-25, in due parti (piano Netlify gratuito = limite
+        // reale di 10s per function sincrona, confermato dall'utente):
+        // 1) maxTokens abbassato da 800 a 600. Empiricamente, 800 token
+        //    impiegavano 10.3s (timeout, confermato con test diretto);
+        //    550 completava in tempo ma il testo risultava TAGLIATO a metà
+        //    frase, perche' il prompt chiedeva 250-300 parole ma Claude ne
+        //    scriveva sistematicamente di piu' (il vincolo era nel prompt,
+        //    non nel budget token). Alzare ulteriormente maxTokens (es.
+        //    1400, come proposto inizialmente) avrebbe quasi certamente
+        //    ripetuto il timeout: 800 token gia' fallivano a 10.3s, 1400
+        //    sarebbero stati anche peggio.
+        // 2) Quindi il fix vero e' nel prompt sopra: limite di parole
+        //    abbassato a 200-230 e reso esplicitamente rigido ("HARD
+        //    LIMIT", struttura ridotta a 4 blocchi brevi invece di 6),
+        //    cosi' la lunghezza naturale della risposta di Claude resta
+        //    sotto budget invece di dipendere solo dal taglio a maxTokens.
+        //    600 token restano un margine di sicurezza (non un target),
+        //    non il meccanismo primario di controllo della lunghezza.
+        // Non testato empiricamente in questa sessione (nessun accesso
+        // diretto per rifare la chiamata dopo la modifica) - verificare
+        // dopo il deploy che il testo generato finisca con la firma e non
+        // sia tagliato, e che il tempo resti sotto i 9s.
         const response = await fetch('/.netlify/functions/validate-keywords', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: prompt,
-                maxTokens: 550
+                maxTokens: 600
             })
         });
         
