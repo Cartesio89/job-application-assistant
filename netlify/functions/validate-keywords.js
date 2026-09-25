@@ -1,6 +1,46 @@
 // Netlify Function - Validate Keywords via Claude API
 // Path: netlify/functions/validate-keywords.js
 
+// Il codice precedente usava 'claude-sonnet-4-20250514' (modello datato
+// maggio 2025). Non ho potuto verificare EMPIRICAMENTE in questa sessione
+// se quello specifico model ID sia stato dismesso da Anthropic (nessun
+// accesso diretto alle API Anthropic da questo sandbox) - è un'ipotesi
+// plausibile come causa di eventuali errori 4xx osservati, non una
+// certezza. Il valore sotto è configurabile via env var così che un
+// cambio di modello futuro non richieda un redeploy del codice.
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+
+// Netlify (funzioni normali, non "background") termina l'esecuzione dopo
+// ~10s sul piano gratuito. Una generazione da 800 token può avvicinarsi o
+// superare quel limite: senza timeout interno, Netlify uccide la funzione
+// e il frontend vede un errore di rete generico invece di un fallback
+// pulito. Qui abortiamo prima (9s) e rispondiamo con fallback:true,
+// così app.js può usare il template locale invece di sembrare rotto.
+const FUNCTION_TIMEOUT_MS = 9000;
+
+async function callClaude(prompt, maxTokens) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FUNCTION_TIMEOUT_MS);
+    try {
+        return await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: MODEL,
+                max_tokens: maxTokens,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 exports.handler = async (event, context) => {
     // CORS headers
     const headers = {
@@ -36,35 +76,38 @@ exports.handler = async (event, context) => {
             // Cover letter generation mode
             const prompt = body.prompt;
             const maxTokens = body.maxTokens || 800;
-            
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': process.env.ANTHROPIC_API_KEY,
-                    'anthropic-version': '2023-06-01'
-                },
-                body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: maxTokens,
-                    messages: [{ role: 'user', content: prompt }]
-                })
-            });
-            
+
+            let response;
+            try {
+                response = await callClaude(prompt, maxTokens);
+            } catch (fetchError) {
+                const isTimeout = fetchError.name === 'AbortError';
+                console.error('Claude API request failed:', fetchError.message);
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        coverLetter: null,
+                        fallback: true,
+                        error: isTimeout ? 'Claude API timeout (>9s)' : fetchError.message
+                    })
+                };
+            }
+
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('Claude API error:', response.status, errorText);
                 return {
                     statusCode: 200,
                     headers,
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         coverLetter: null,
                         fallback: true,
                         error: `Claude API returned ${response.status}`
                     })
                 };
             }
-            
+
             const data = await response.json();
             const coverLetter = data.content[0].text.trim();
             
@@ -116,23 +159,23 @@ ${keywordList}
 Rispondi SOLO con lista keyword valide separate da virgola, NIENTE altro testo.`;
 
         // Call Claude API
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 500,
-                messages: [{ 
-                    role: 'user', 
-                    content: prompt 
-                }]
-            })
-        });
-        
+        let response;
+        try {
+            response = await callClaude(prompt, 500);
+        } catch (fetchError) {
+            const isTimeout = fetchError.name === 'AbortError';
+            console.error('Claude API request failed:', fetchError.message);
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    validKeywords: keywords.map(k => k.word),
+                    fallback: true,
+                    error: isTimeout ? 'Claude API timeout (>9s)' : fetchError.message
+                })
+            };
+        }
+
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Claude API error:', response.status, errorText);
