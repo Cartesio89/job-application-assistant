@@ -109,14 +109,41 @@ exports.handler = async (event, context) => {
             }
 
             const data = await response.json();
-            const coverLetter = data.content[0].text.trim();
-            
+
+            // Difensivo (aggiunto 2026-09-25): un test empirico ha dato
+            // "Cannot read properties of undefined (reading 'trim')" qui,
+            // cioe' data.content[0].text non era una stringa come atteso.
+            // Non so ancora il perche' (stop_reason anomalo? content block
+            // di tipo diverso? risposta troncata?) - invece di continuare
+            // a ipotizzare, se la struttura non torna come prevista
+            // restituiamo un estratto della risposta grezza di Claude cosi'
+            // il prossimo test mostra il dato reale invece di un errore
+            // generico senza contesto.
+            const textBlock = data.content && data.content[0];
+            if (!textBlock || typeof textBlock.text !== 'string') {
+                console.error('Unexpected Claude response shape:', JSON.stringify(data).slice(0, 1000));
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        coverLetter: null,
+                        fallback: true,
+                        error: 'Unexpected Claude response shape',
+                        stopReason: data.stop_reason || null,
+                        rawContentPreview: JSON.stringify(data.content || data).slice(0, 500)
+                    })
+                };
+            }
+
+            const coverLetter = textBlock.text.trim();
+
             return {
                 statusCode: 200,
                 headers,
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     coverLetter,
-                    fallback: false
+                    fallback: false,
+                    stopReason: data.stop_reason || null
                 })
             };
         }
