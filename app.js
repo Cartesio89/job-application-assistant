@@ -873,12 +873,19 @@ REQUIREMENTS:
 
 Generate ONLY the cover letter text, no additional commentary.`;
 
+        // maxTokens abbassato da 800 a 550 il 2026-09-25: con 800 la
+        // generazione superava sistematicamente il timeout interno di 9s
+        // della function (confermato empiricamente: 10.3s reali, errore
+        // "Claude API timeout (>9s)"). generate-cv.js, che funziona in modo
+        // affidabile con lo stesso limite di 9s, chiede solo 400 token. 550
+        // resta abbondante per 250-300 parole di cover letter (~350-450
+        // token in italiano) con un margine di sicurezza.
         const response = await fetch('/.netlify/functions/validate-keywords', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: prompt,
-                maxTokens: 800
+                maxTokens: 550
             })
         });
         
@@ -2046,17 +2053,6 @@ function displayResultsMartino(results, analysisId) {
                     💾 Download
                 </button>
             </div>
-        </div>
-        
-        <div class="card">
-            <h3 style="color: #667eea;">👤 About Me CV</h3>
-            <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; border-left: 4px solid #667eea; margin-bottom: 15px;">
-                <p style="margin: 0; font-size: 14px; line-height: 1.7;">${results.aboutMe}</p>
-            </div>
-            <button onclick="copyToClipboard('aboutMeText')" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                📋 Copy
-            </button>
-            <textarea id="aboutMeText" style="position: absolute; left: -9999px;">${results.aboutMe}</textarea>
         </div>
         
         <div class="card">
