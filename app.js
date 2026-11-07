@@ -1,4 +1,4 @@
-// Job Application System V4.2 - PRODUCTION READY
+ // Job Application System V4.2 - PRODUCTION READY
 // Complete rewrite with intelligent filtering + all fixes
 // Part 1: Core Data, Storage, Advanced Keywords (NO API needed)
 
@@ -20,8 +20,26 @@ const martinoProfile = {
         "AI for Marketing", "Prompt Engineering", "Team Management",
         "Excel", "PowerPoint"
     ],
-    brandsManaged: ["Honda", "Levi's", "Acuvue", "Ceres"],
-    industries: ["Automotive", "Fashion", "Medical Device", "Beverage"],
+    // Fix del 2026-11-07: "Ceres" e "Beverage" sono stati rimossi - non e'
+    // un'esperienza reale del candidato (non ha mai lavorato per Ceres).
+    // Erano hardcoded qui, quindi comparivano in OGNI cover letter/CV/gap
+    // analysis generati via AI, perche' tutti e 4 i prompt in questo file
+    // interpolano profile.brandsManaged/profile.industries direttamente.
+    // Root cause della "invenzione" segnalata dall'utente, non un'allucinazione
+    // del modello: era nel dato sorgente.
+    brandsManaged: ["Honda", "Levi's", "Acuvue"],
+    industries: ["Automotive", "Fashion", "Medical Device", "Gaming"],
+    // Link portfolio pubblici (da CV "luglio 26 con portfolio", 2026-11-07).
+    // Usati per decidere se/come menzionare il portfolio nella cover letter
+    // generata via AI - vedi showPortfolioLinks in generateCoverLetterWithAI.
+    portfolioLinks: {
+        github: "https://github.com/Cartesio89",
+        jobApplicationAssistant: "https://job-application-assistant-v2.netlify.app/",
+        comunicazione: [
+            "https://cartesio89.github.io/piani-comunicazione/patarock/ (Wacko's - campagna digital)",
+            "https://cartesio89.github.io/piani-comunicazione/slamp/ (Slamp - marketing luxury design)"
+        ]
+    },
     aiCertifications: [
         "AI for Marketing (Fastweb Digital Academy)",
         "Prompt Engineering", "Claude", "NotebookLM", "Midjourney"
@@ -835,10 +853,21 @@ ${profile.email} | ${profile.phone}`;
 // ============================================
 // AI-GENERATED COVER LETTER (API)
 // ============================================
-async function generateCoverLetterWithAI(company, role, jdText, profile) {
+// showPortfolio (bool): stesso segnale di detectAIRequirement(jd) usato per
+// scegliere la variante "full" vs "com" del CV preimpostato (vedi
+// recommendCV) - tenuto coerente apposta, cosi' cover letter e CV non si
+// contraddicono su quanto risaltare i progetti personali/IA per la stessa
+// candidatura.
+async function generateCoverLetterWithAI(company, role, jdText, profile, showPortfolio = false) {
     try {
         console.log('🤖 Generating AI cover letter via Netlify function...');
-        
+
+        const portfolioBlock = showPortfolio ? `
+
+PORTFOLIO (menziona 1 link SOLO se rilevante per il ruolo, in una frase, non come lista):
+- GitHub: ${profile.portfolioLinks.github}
+- Job Application Assistant (tool AI che stai usando ora): ${profile.portfolioLinks.jobApplicationAssistant}` : '';
+
         const prompt = `You are an expert career consultant. Generate a professional cover letter in Italian for this application.
 
 CANDIDATE PROFILE:
@@ -848,7 +877,7 @@ CANDIDATE PROFILE:
 - Core Skills: ${profile.coreSkills.slice(0, 10).join(', ')}
 - Brands Managed: ${profile.brandsManaged.join(', ')}
 - Industries: ${profile.industries.join(', ')}
-${profile.aiCertifications ? `- AI Certifications: ${profile.aiCertifications.join(', ')}` : ''}
+${profile.aiCertifications ? `- AI Certifications: ${profile.aiCertifications.join(', ')}` : ''}${portfolioBlock}
 
 TARGET POSITION:
 - Company: ${company}
@@ -868,7 +897,10 @@ REQUIREMENTS:
    - Closing: Express enthusiasm and availability (1 sentence)
 5. Be SPECIFIC: Reference actual keywords from JD, but concisely
 6. Avoid generic phrases
-7. End with: "Cordiali saluti, ${profile.name}, ${profile.email} | ${profile.phone}"
+7. NEVER mention a company, brand or employer not explicitly listed above
+   under "Brands Managed" or "Current Role". Do not invent or assume any
+   past employer.
+8. End with: "Cordiali saluti, ${profile.name}, ${profile.email} | ${profile.phone}"
 
 Generate ONLY the cover letter text, no additional commentary. Stop writing
 as soon as you reach the closing signature - do not add anything after it.`;
@@ -1583,6 +1615,9 @@ async function generateDocumentsMartino() {
             const keywords = await extractKeywordsAdvanced(jd, 15);
             const reqs = extractRequirements(jd);
             const competitiveAnalysis = generateCompetitiveAnalysis(jd, martinoProfile);
+            // Stesso segnale usato da recommendCV per scegliere la variante
+            // CV full/com - vedi nota su generateCoverLetterWithAI.
+            const { required: showPortfolio } = detectAIRequirement(jd);
 
             // Le 4 chiamate AI sono indipendenti tra loro (nessuna usa l'output
             // di un'altra) -> eseguite in parallelo invece che in sequenza.
@@ -1590,7 +1625,7 @@ async function generateDocumentsMartino() {
             // 4 round-trip a Claude da qualche secondo l'uno, la differenza
             // e' facilmente 3-4x sul tempo di attesa totale.
             const [aiCoverLetter, aiAboutMe, aiCVSuggestions, aiGapAnalysis] = await Promise.all([
-                generateCoverLetterWithAI(company, role, jd, martinoProfile),
+                generateCoverLetterWithAI(company, role, jd, martinoProfile, showPortfolio),
                 generateAboutMeWithAI(jd, martinoProfile),
                 generateCVSuggestionsWithAI(jd, martinoProfile, reqs),
                 generateGapAnalysisWithAI(jd, martinoProfile, competitiveAnalysis)
@@ -1684,10 +1719,14 @@ async function generateDocumentsMartino() {
 // ============================================
 // CV RECOMMENDATION ENGINE (Passaggio 3 - sempre attivo)
 // ============================================
-// Sceglie quale dei 20 CV preimpostati (5 orientamenti x 2 lingue x
-// con/senza portfolio, in cv-templates/manifest.json) usare per una data
-// job description. Interamente deterministico (regex, nessuna chiamata di
-// rete) cosi' funziona SEMPRE, anche se le funzioni AI del tool sono giu' o
+// Sceglie quale dei 22 CV preimpostati (6 orientamenti x 2 lingue - project-
+// management solo IT, nessuna versione EN al momento - x 2 varianti di
+// portfolio "full"/"com", in cv-templates/manifest.json) usare per una data
+// job description. "full" = portfolio completo (progetti tecnici/IA inclusi),
+// "com" = solo i 2 progetti di comunicazione/marketing (Wacko's, Slamp) -
+// aggiornato 2026-11-07, prima la var "com" non esisteva e la scelta era
+// semplicemente con/senza portfolio. Interamente deterministico (regex,
+// nessuna chiamata di rete) cosi' funziona SEMPRE, anche se le funzioni AI del tool sono giu' o
 // lente: la raccomandazione non deve mai dipendere da Claude per esistere.
 //
 // Il "Passaggio 1" (generazione di una versione su misura via AI, vedi
@@ -1752,6 +1791,14 @@ const ORIENTATION_PATTERNS = {
         /\bcomunicazione\b/i, /\bufficio stampa\b/i, /\bpublic relations\b/i, /\bPR\b/,
         /\bcontent strategy\b/i, /\bcopywriting\b/i, /\bsocial media manager\b/i,
         /\bpress release[s]?\b/i, /\bcomunicat[oi] stampa\b/i, /\beditorial[ei]\b/i
+    ],
+    // Aggiunto 2026-11-07: 6° orientamento, prima mancante (il CV esisteva
+    // solo come preimpostato selezionabile a mano, mai riconosciuto dalla JD).
+    'project-management': [
+        /\bproject management\b/i, /\bproject manager\b/i, /\bprogram manager\b/i,
+        /\bgestione progett[oi]\b/i, /\bpianificazione progett[oi]\b/i,
+        /\bagile\b/i, /\bscrum\b/i, /\bscrum master\b/i, /\bkanban\b/i,
+        /\bstakeholder management\b/i, /\bPMP\b/, /\bPMO\b/i, /\bproject planning\b/i
     ]
 };
 
@@ -1805,15 +1852,16 @@ async function recommendCV(jdText) {
     const { orientation, scores, confident } = detectCVOrientation(jdText);
     const { required: aiRequired, matchedTerms } = detectAIRequirement(jdText);
 
+    const portfolioVariant = aiRequired ? 'full' : 'com';
     const entry = manifest.find(e =>
-        e.orientation === orientation && e.language === language && e.portfolio === aiRequired
+        e.orientation === orientation && e.language === language && e.portfolioVariant === portfolioVariant
     );
 
-    // Non dovrebbe mai succedere con una matrice 5x2x2 completa, ma se un
-    // file dovesse mancare in futuro non blocchiamo la raccomandazione:
-    // degradiamo al generico nella stessa lingua/portfolio.
+    // Degradiamo al generico nella stessa lingua/variante se manca una
+    // combinazione (es. project-management non ha ancora versione EN) -
+    // la raccomandazione non deve mai bloccarsi per un file mancante.
     const finalEntry = entry || manifest.find(e =>
-        e.orientation === 'generico' && e.language === language && e.portfolio === aiRequired
+        e.orientation === 'generico' && e.language === language && e.portfolioVariant === portfolioVariant
     ) || manifest[0];
 
     return {
@@ -1879,7 +1927,7 @@ async function generateTailoredCV(templateId, jdText, company, role) {
 
 function buildCVRecommendationHTML(rec) {
     const langLabel = rec.language === 'it' ? 'Italiano' : 'English';
-    const pfLabel = rec.aiRequired ? 'CON portfolio progetti IA' : 'SENZA portfolio';
+    const pfLabel = rec.aiRequired ? 'Portfolio completo (progetti tecnici/IA)' : 'Portfolio comunicazione (solo Wacko\'s/Slamp)';
     const pfReason = rec.aiRequired
         ? `l'annuncio menziona: ${rec.aiMatchedTerms.slice(0, 4).join(', ')}`
         : 'nessun requisito IA esplicito rilevato nell\'annuncio';
