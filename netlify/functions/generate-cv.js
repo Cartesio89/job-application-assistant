@@ -1,4 +1,4 @@
-// Netlify Function - Genera una versione "su misura" di uno dei 20 CV
+// Netlify Function - Genera una versione "su misura" di uno dei 22 CV
 // preimpostati (Passaggio 1). Chiamata SOLO quando il motore di
 // raccomandazione lato client (recommendCV in app.js, Passaggio 3) segnala
 // bassa confidenza, o su richiesta esplicita dell'utente - mai come step
@@ -15,20 +15,16 @@
 //    (quello a indice manifest.profileParagraphIndex, di norma 4) su misura
 //    per la JD, mantenendo lingua e registro del preimpostato.
 // 4. Inietta il nuovo testo nel .docx con un editing per INDICE di
-//    paragrafo (non find&replace testuale): alcuni dei 20 file hanno quel
-//    paragrafo diviso su piu' run (verificato empiricamente su uno dei 20
-//    file caricati dall'utente - tipico artefatto di spell-check/autocorrect
-//    di Word), quindi un find&replace su stringa fallirebbe silenziosamente
-//    su quei file.
+//    paragrafo (non find&replace testuale): alcuni dei file hanno quel
+//    paragrafo diviso su piu' run (verificato empiricamente - tipico
+//    artefatto di spell-check/autocorrect di Word), quindi un find&replace
+//    su stringa fallirebbe silenziosamente su quei file.
 // 5. Ritorna il .docx risultante in base64. Se la generazione AI fallisce o
 //    e' inutilizzabile, ritorna comunque il .docx originale (paragrafo
 //    invariato) con fallback:true, MAI un errore secco: l'utente ottiene
 //    sempre un file scaricabile.
 //
-// Dipendenze npm richieste (jszip, @xmldom/xmldom): il repo non ha
-// attualmente un package.json (verificato: 404 su GitHub) - va aggiunto,
-// altrimenti l'esbuild bundler di Netlify non trova questi pacchetti in
-// fase di build. Vedi package.json fornito insieme a questo file.
+// Dipendenze npm richieste (jszip, @xmldom/xmldom): vedi package.json.
 
 const JSZip = require('jszip');
 const { DOMParser, XMLSerializer } = require('@xmldom/xmldom');
@@ -59,6 +55,12 @@ async function callClaude(prompt, maxTokens) {
             body: JSON.stringify({
                 model: MODEL,
                 max_tokens: maxTokens,
+                // Aggiunto 2026-11-07, stesso fix applicato in validate-keywords.js
+                // il 2026-09-25: senza questo, il modello puo' restituire un
+                // content block di tipo "thinking" che consuma il budget di
+                // token senza produrre testo, pur non avendo mai richiesto
+                // extended thinking in questa request.
+                thinking: { type: 'disabled' },
                 messages: [{ role: 'user', content: prompt }]
             })
         });
@@ -82,7 +84,7 @@ ${jdText.substring(0, 2000)}
 REGOLE:
 1. Scrivi in ${languageName}, stesso registro professionale dell'originale.
 2. Lunghezza simile all'originale (${entry.profileParagraph.split(/\s+/).length} parole circa, tolleranza +-20%).
-3. Riprendi SOLO fatti gia' presenti nel paragrafo originale (esperienza, brand, settori, strumenti) - non inventare competenze non presenti nell'originale.
+3. Riprendi SOLO fatti gia' presenti nel paragrafo originale (esperienza, brand, settori, strumenti) - non inventare competenze, aziende o esperienze non presenti nell'originale. Non menzionare MAI un'azienda/cliente non citata nel paragrafo originale.
 4. Enfatizza i punti del paragrafo originale piu' rilevanti per questo annuncio specifico.
 5. Nessun markdown, nessuna virgoletta introduttiva, SOLO il testo del paragrafo.`;
 }
@@ -187,9 +189,10 @@ exports.handler = async (event, context) => {
         const docxBuffer = Buffer.from(await docxRes.arrayBuffer());
 
         // Prova a generare il profilo su misura via Claude. Se fallisce in
-        // QUALSIASI modo (timeout, errore API, risposta vuota/troppo corta),
-        // si prosegue comunque con il testo originale: l'utente riceve
-        // sempre un .docx valido, al massimo identico al preimpostato.
+        // QUALSIASI modo (timeout, errore API, risposta vuota/troppo corta,
+        // content block non di tipo testo), si prosegue comunque con il
+        // testo originale: l'utente riceve sempre un .docx valido, al
+        // massimo identico al preimpostato.
         let tailoredProfile = null;
         let aiFallback = true;
         try {
@@ -197,10 +200,15 @@ exports.handler = async (event, context) => {
             const claudeRes = await callClaude(prompt, 400);
             if (claudeRes.ok) {
                 const data = await claudeRes.json();
-                const text = data.content[0].text.trim();
-                if (text.length > 40) {
-                    tailoredProfile = text;
-                    aiFallback = false;
+                const textBlock = data.content && data.content[0];
+                if (textBlock && typeof textBlock.text === 'string') {
+                    const text = textBlock.text.trim();
+                    if (text.length > 40) {
+                        tailoredProfile = text;
+                        aiFallback = false;
+                    }
+                } else {
+                    console.error('Unexpected Claude response shape:', JSON.stringify(data).slice(0, 500));
                 }
             } else {
                 console.error('Claude API error:', claudeRes.status, await claudeRes.text());
